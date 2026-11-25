@@ -22,6 +22,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from backend.agents import (
+    audit_filing,
+    daily_pick_scan,
+    debate_stock,
+    llm_router,
+    morning_briefing,
+)
 from backend.compute_engine import (
     analyze_options_chain,
     analyze_stock_risk,
@@ -70,6 +77,11 @@ COMMANDS = {
     ),
     "score": lambda args: score_stock(args[0])["compact_ai_dossier"],
     "screen": lambda args: screen_watchlist(args if args else ["AAPL", "NVDA", "MSFT"]),
+    "debate": lambda args: debate_stock(args[0] if args else "AAPL"),
+    "audit": lambda args: audit_filing(args[0] if args else "AAPL"),
+    "briefing": lambda args: morning_briefing(),
+    "best_picks": lambda args: daily_pick_scan(args if args else None),
+    "ai_health": lambda args: llm_router.gateway_health(),
 }
 
 
