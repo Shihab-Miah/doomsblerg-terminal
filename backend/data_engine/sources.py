@@ -180,17 +180,20 @@ FINRA_SHORT_URL  = "https://www.finra.org/investors/learn-to-invest/advanced-inv
 USPTO_API_URL    = "https://developer.uspto.gov/ds-api/oa_citations/v1/records"
 
 # ─────────────────────────────────────────────────────────────
-# AI AGENTS
-# Source 1: Google Gemini Flash (free tier via Google AI Studio)
-# Source 2: Groq LPU Inference (free tier: 30 RPM / 1,000 RPD)
-# Source 3: Ollama local models (DeepSeek R1, Llama 3.3) — zero API cost
+# AI AGENTS (Quota-Proof Multi-Provider Router)
+# Source 1: Google Gemini Flash + Gemma 4 (separate per-model free buckets)
+# Source 2: Groq LPU Inference (free tier: 30 RPM / 1,000+ RPD per model)
+# Source 3: Ollama local models (DeepSeek R1, Qwen 2.5) — zero API cost
 # ─────────────────────────────────────────────────────────────
-GEMINI_MODEL     = "gemini-3.8-flash"
+GEMINI_MODEL         = "gemini-3.5-flash"
+GEMINI_LITE_MODEL    = "gemini-2.5-flash-lite"
+GEMINI_OPEN_MODEL    = "gemma-4-31b-it"
 # Free key at: https://aistudio.google.com/apikey
 
-GROQ_BASE_URL    = "https://api.groq.com/openai/v1"
-GROQ_MODEL       = "qwen/qwen3.8-27b"
-# Free key at: https://console.groq.com/login (1,000 req/day free)
+GROQ_BASE_URL        = "https://api.groq.com/openai/v1"
+GROQ_MODEL           = "qwen/qwen3.8-27b"
+GROQ_REASONING_MODEL = "openai/gpt-oss-120b"
+# Free key at: https://console.groq.com/login
 
 OLLAMA_LOCAL_URL = "http://localhost:11434"  # Runs on your own machine
 OLLAMA_MODELS    = ["deepseek-r1:7b", "llama3.3:70b", "qwen2.5-finance"]
