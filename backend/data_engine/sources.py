@@ -135,8 +135,26 @@ USGS_EQ_URL      = "https://earthquake.usgs.gov/fdsnws/event/1/query"
 # Satellites — CelesTrak (free TLE data, no key)
 CELESTRAK_URL    = "https://celestrak.org/SOCRATES/"
 
-# Weather — NOAA Open Data (free, no key)
-NOAA_CLIMATE_URL = "https://www.ncei.noaa.gov/cdo-web/api/v2"
+# Weather — NOAA CDO, NWS, Open-Meteo, NASA POWER (all free)
+NOAA_CLIMATE_URL   = "https://www.ncei.noaa.gov/cdo-web/api/v2"
+NWS_ALERTS_URL     = "https://api.weather.gov/alerts/active"          # No key needed
+OPEN_METEO_URL     = "https://api.open-meteo.com/v1/forecast"         # No key needed (16-day global)
+NASA_POWER_URL     = "https://power.larc.nasa.gov/api/temporal/daily/point"  # No key needed (agroclimatology)
+
+# Energy & Agricultural Commodities (Official US Gov — free email key)
+EIA_V2_URL         = "https://api.eia.gov/v2"                         # https://www.eia.gov/opendata/register.php
+USDA_NASS_URL      = "https://quickstats.nass.usda.gov/api/api_GET/"  # https://quickstats.nass.usda.gov/api
+
+# Crypto Perpetual Derivatives (Free, no key needed for public market data)
+HYPERLIQUID_INFO   = "https://api.hyperliquid.xyz/info"
+BINANCE_FAPI_URL   = "https://fapi.binance.com/fapi/v1"
+
+# Multi-Source Equity / FX Cross-Verification (Free tiers)
+TIINGO_BASE_URL    = "https://api.tiingo.com"
+TWELVEDATA_URL     = "https://api.twelvedata.com"
+FMP_BASE_URL       = "https://financialmodelingprep.com/stable"
+MASSIVE_BASE_URL   = "https://api.massive.com"
+ALPHAVANTAGE_URL   = "https://www.alphavantage.co/query"
 
 # ─────────────────────────────────────────────────────────────
 # CORPORATE INTELLIGENCE (All Direct from SEC — Free & Identical to Bloomberg)
@@ -163,12 +181,16 @@ USPTO_API_URL    = "https://developer.uspto.gov/ds-api/oa_citations/v1/records"
 
 # ─────────────────────────────────────────────────────────────
 # AI AGENTS
-# Source 1: Google Gemini 2.0 Flash (free tier: 15 req/min, 1M tokens/day)
-# Source 2: Ollama local models (DeepSeek R1, Llama 3.3) — zero API cost
+# Source 1: Google Gemini Flash (free tier via Google AI Studio)
+# Source 2: Groq LPU Inference (free tier: 30 RPM / 1,000 RPD)
+# Source 3: Ollama local models (DeepSeek R1, Llama 3.3) — zero API cost
 # ─────────────────────────────────────────────────────────────
-GEMINI_MODEL     = "gemini-2.0-flash"
-GEMINI_FREE_TIER = "1,000,000 tokens/day, 15 req/min — no cost"
-# Free key at: https://aistudio.google.com (Google account required)
+GEMINI_MODEL     = "gemini-3.8-flash"
+# Free key at: https://aistudio.google.com/apikey
+
+GROQ_BASE_URL    = "https://api.groq.com/openai/v1"
+GROQ_MODEL       = "qwen/qwen3.8-27b"
+# Free key at: https://console.groq.com/login (1,000 req/day free)
 
 OLLAMA_LOCAL_URL = "http://localhost:11434"  # Runs on your own machine
 OLLAMA_MODELS    = ["deepseek-r1:7b", "llama3.3:70b", "qwen2.5-finance"]

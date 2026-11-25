@@ -30,9 +30,9 @@ NASA_FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
 def get_active_wildfires(
     api_key: str,
-    area: str = "world",
-    days: int = 1,
-    source: str = "VIIRS_SNPP_NRT",
+    area: str = "-180,-90,180,90",
+    days: int = 2,
+    source: str = "VIIRS_NOAA21_NRT",
 ) -> pd.DataFrame:
     """
     Get all active fire detections worldwide in the last N days.
@@ -40,10 +40,11 @@ def get_active_wildfires(
 
     Args:
         api_key: NASA FIRMS API key (free at firms.modaps.eosdis.nasa.gov)
-        area: Geographic area code or bounding box "lon_min,lat_min,lon_max,lat_max"
+        area: Bounding box "lon_min,lat_min,lon_max,lat_max" (default global)
         days: How many days back to look (1-10)
         source: Satellite source
-            "VIIRS_SNPP_NRT" — Best resolution, near real-time (recommended)
+            "VIIRS_NOAA21_NRT" — Best resolution, near real-time (recommended)
+            "VIIRS_NOAA20_NRT" — Alternate VIIRS satellite feed
             "MODIS_NRT" — Lower resolution but broader coverage
 
     Returns DataFrame with:
