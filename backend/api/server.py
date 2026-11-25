@@ -100,32 +100,37 @@ def detect_lan_urls(port: int = 8000) -> List[Dict[str, str]]:
     found: List[Dict[str, str]] = []
     seen = set()
 
-    try:
-        out = subprocess.run(["ip", "-4", "addr", "show"], capture_output=True, text=True, timeout=3).stdout
-        cur_iface = ""
-        for line in out.splitlines():
-            m_iface = re.match(r"^\d+:\s+([^:@]+)", line)
-            if m_iface:
-                cur_iface = m_iface.group(1).strip()
-            m_ip = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/", line)
-            if m_ip:
-                ip = m_ip.group(1)
-                if ip.startswith("127.") or ip.startswith("192.0.0."):
-                    continue
-                if ip in seen:
-                    continue
-                seen.add(ip)
-                is_hotspot_or_wifi = cur_iface.startswith(("ap", "wlan", "swlan", "en", "eth", "wl"))
-                found.append(
-                    {
-                        "interface": cur_iface or "lan",
-                        "ip": ip,
-                        "url": f"http://{ip}:{port}",
-                        "priority": "primary_hotspot_wifi" if is_hotspot_or_wifi else "secondary",
-                    }
-                )
-    except Exception:
-        pass
+    for cmd in (["ip", "-4", "addr", "show"], ["ifconfig"]):
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+            if proc.returncode != 0 or not proc.stdout:
+                continue
+            cur_iface = ""
+            for line in proc.stdout.splitlines():
+                m_iface = re.match(r"^(?:\d+:\s+)?([A-Za-z0-9_.-]+?)(?:@\S+)?:\s+", line)
+                if m_iface:
+                    cur_iface = m_iface.group(1).strip()
+                m_ip = re.search(r"\binet\s+(?:addr:)?(\d+\.\d+\.\d+\.\d+)\b", line)
+                if m_ip:
+                    ip = m_ip.group(1)
+                    if ip.startswith("127.") or ip.startswith("192.0.0."):
+                        continue
+                    if ip in seen:
+                        continue
+                    seen.add(ip)
+                    is_hotspot_or_wifi = cur_iface.startswith(("ap", "wlan", "swlan", "en", "eth", "wl"))
+                    found.append(
+                        {
+                            "interface": cur_iface or "lan",
+                            "ip": ip,
+                            "url": f"http://{ip}:{port}",
+                            "priority": "primary_hotspot_wifi" if is_hotspot_or_wifi else "secondary",
+                        }
+                    )
+            if found:
+                break
+        except Exception:
+            continue
 
     if not found:
         try:
