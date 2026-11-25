@@ -130,7 +130,7 @@ def get_yield_curve(year: Optional[int] = None) -> Dict[str, Any]:
                 "_format": "csv",
             },
             ttl_seconds=3600,
-            timeout=15,
+            timeout=4,
         )
         rows = list(csv.DictReader(StringIO(raw_csv)))
         if rows:

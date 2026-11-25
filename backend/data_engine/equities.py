@@ -369,15 +369,26 @@ def _parse_occ_symbol(occ: str) -> Dict[str, Any]:
     return {"expiry": expiry, "type": opt_type, "strike": strike}
 
 
-def get_options_chain(ticker: str, limit: int = 30) -> Dict[str, Any]:
+def get_options_chain(
+    ticker: str,
+    limit: int = 30,
+    strike_min: Optional[float] = None,
+    strike_max: Optional[float] = None,
+) -> Dict[str, Any]:
     """Return live options chain snapshots with Greeks & IV from Alpaca (replaces OMON)."""
     ticker = ticker.upper().strip()
     if not get_key("ALPACA_API_KEY"):
         raise RuntimeError("ALPACA_API_KEY is required for live Alpaca options snapshots.")
 
+    params: Dict[str, Any] = {"limit": limit}
+    if strike_min is not None:
+        params["strike_price_gte"] = round(strike_min, 2)
+    if strike_max is not None:
+        params["strike_price_lte"] = round(strike_max, 2)
+
     data = fetch_json(
         f"https://data.alpaca.markets/v1beta1/options/snapshots/{ticker}",
-        params={"limit": limit},
+        params=params,
         headers=_alpaca_headers(),
         ttl_seconds=60,
     )
