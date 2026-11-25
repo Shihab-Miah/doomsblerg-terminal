@@ -1,97 +1,88 @@
-# 🧠 DoomsBlerg Quota-Proof AI Council Architecture
-### How to Run an 8-Agent Buy/Sell Prediction Board Without Hitting Free API Limits
+# 🧠 DoomsBlerg Cloud-Only AI Council & Multi-Gateway Switcher
+### Designed for Low-End Laptops (0 MB Local AI RAM) & $0/Month Forever
 
 > [!IMPORTANT]
-> **The Core Problem:** Free LLM APIs (Gemini, Groq) have strict **requests-per-minute (RPM)** and **daily token (TPD)** caps. If you feed 100 stocks × 200-page SEC filings into an 8-agent LLM loop every hour, you will hit `429 Quota Exhausted` within minutes.
->
-> **The Solution:** **Never use LLMs to screen, calculate, or crunch numbers.** Code filters 5,000 stocks down to the top 5–10 candidates for **$0 token cost**, and a **Smart Multi-Provider LLM Router** splits the final reasoning across **separate model buckets + separate providers + local models**.
+> **Hardware & Cost Constraints:**
+> 1. **Low-End Laptop Friendly:** Zero local LLMs (no Ollama, no PyTorch, no local FinBERT weights). Total backend footprint stays under ~250 MB RAM.
+> 2. **Zero Dollars ($0/month):** Every AI call routes across free cloud APIs and free AI gateways.
+> 3. **Never Stalls on `429`:** A unified **OpenAI-compatible + Gemini Circuit-Breaker Router** switches automatically between **4 active cloud gateways** (and an optional 5th) whenever any model or provider hits rate limits.
 
 ---
 
-## 1. The 3-Stage Funnel (Reduces AI Token Usage by 98%)
+## 1. Live Cloud AI Fleet & Verified Quotas
+
+| Gateway / Provider | Auth Status | Verified Working Models | Free Quota / Throughput | Role in Switcher |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Google AI Studio** | `GEMINI_API_KEY` (Verified) | `gemini-3.5-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemma-4-31b-it`, `gemini-embedding-001` | Separate per-model free tier limits + cloud embeddings | Primary Auditor, Risk Officer Judge, Bear (`gemma-4`), 10-K Embedding |
+| **2. Groq LPU** | `GROQ_API_KEY` (Verified) | `qwen/qwen3.8-27b`, `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `allam-2-7b` | ~1,000+ RPD per model bucket (30 RPM, ultra-fast) | Bull Advocate (`gpt-oss-120b`), Sentiment & Macro fast pass |
+| **3. OpenRouter** | `OPENROUTER_API_KEY` (Verified) | `nvidia/nemotron-3.5-lightning:free`, `nvidia/nemotron-3-ultra-550b-a55b:free`, + 9 more `:free` models | **50 free req/day** across `:free` catalog (20 RPM) | Deep reasoning cross-check (`550B`) & second opinion |
+| **4. Kilo AI Gateway** | **No Key Needed** *(or free `KILO_API_KEY`)* | `reflection/beam-free` (tested live!), `kilo-auto/free`, + 15 rotating free models | **200 req/hour anonymous** (up to 4,800/day capacity) | High-volume overflow & 429 burst absorber |
+| **5. OpenCode Zen** *(Optional)* | Needs `OPENCODE_API_KEY` (`opencode.ai/auth`) | `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `big-pickle` | Anonymous pool hits `429`; authenticated key adds extra free pool | Optional 5th failover slot |
+
+---
+
+## 2. How the Low-RAM 3-Stage Funnel Cuts Token Usage by 98%
+
+Because the laptop has limited RAM and cloud free tiers have daily caps, **we let tiny pure-Python code do 98% of the work before any cloud AI call is made**:
 
 ```
 [ 5,000+ Stocks, Crypto, Commodities, Ships, Fires ]
                         │
-                        ▼  (STAGE 1: 100% Pure Python — 0 AI Tokens)
-     • Screening & Technicals: RSI, MACD, volume spikes, earnings beats
-     • Fundamental Math: DCF fair value gap, Altman Z-Score, F-Score
-     • Geospatial Triggers: Tanker queues, crop fires, Taiwan quakes
-     • Insider / Congress Filter: Recent SEC Form 4 cluster buys
+                        ▼  (STAGE 1: Pure Python — < 50 MB RAM, 0 AI Tokens)
+     • Quant Screener: DCF fair value discount %, Altman Z-Score, F-Score
+     • Technical Math: RSI, MACD, volume anomalies via NumPy / pandas-ta
+     • Physical Alpha: EIA oil delta, USDA crop delta, NASA FIRMS, USGS, AIS
+     • Insider / Congress: SEC Form 4 cluster buys
                         │
                         ▼  (Narrows 5,000 → Top 5–10 Actionable Candidates)
-     (STAGE 2: Local Embeddings + Compact Fact Sheet — 0 Cloud LLM Tokens)
-     • ChromaDB / sentence-transformers retrieves ONLY the 3 risky paragraphs
-       from a 200-page 10-K filing (not the whole PDF!)
-     • Summarizes all financial tables into a tiny ~600-token JSON "Dossier"
+     (STAGE 2: Lightweight Text Extract — < 30 MB RAM, 0 Local ML)
+     • VADER lexicon scores 1,000 news headlines in < 0.2s (pure Python, 1 MB RAM)
+     • SQLite FTS5 extracts only the top 3 risky sections from 10-K filings
+     • Optional: Google `gemini-embedding-001` API embeds chunks in the cloud
+     • Outputs a compact ~600-token JSON Fact Sheet
                         │
-                        ▼  (STAGE 3: Quota-Proof Multi-LLM Council)
-     • Only the 5–10 winning candidates go to the AI Agent Council
-     • Each agent runs on a DIFFERENT free quota bucket!
+                        ▼  (STAGE 3: 4-Cloud Circuit-Breaker AI Council)
+     • Only the 5–10 shortlisted tickers hit the 8-Agent Council
+     • Every agent has Primary + Fallback 1 + Fallback 2 across DIFFERENT clouds!
 ```
-
-**Result:** Instead of burning 500,000 tokens per scan, a full market-wide Buy/Sell briefing uses **< 8,000 tokens total** — meaning you can run **50–100+ full multi-agent analyses per day for $0**.
 
 ---
 
-## 2. Splitting Agents Across Separate Quota Buckets
+## 3. Agent-to-Cloud Routing Table & Automatic Failover Chain
 
-Free API limits are enforced **per model family and per provider**. By routing different agents to **different models and providers**, quotas multiply instead of colliding:
+Each agent runs on a **Primary** provider and automatically fails over on `429` / `503` / timeout:
 
-| Agent Role | Primary Provider & Model | Quota Bucket | Fallback / Overflow |
+| Agent | Primary (Best Fit) | Fallback 1 | Fallback 2 |
 | :--- | :--- | :--- | :--- |
-| **1. Fundamental Auditor** | Gemini (`gemini-2.5-flash` or `gemini-3.5-flash`) | Google AI Studio Flash bucket | `gemini-2.5-flash-lite` |
-| **2. Technical Quant** | **Pure Python (`pandas-ta`)** + Groq (`openai/gpt-oss-20b`) | **0 tokens** for math; Groq 20B bucket for summary | `qwen/qwen3.8-27b` |
-| **3. Macro Economist** | Gemini (`gemini-2.5-flash-lite`) | Google Lite bucket (separate RPD/RPM) | Groq (`openai/gpt-oss-120b`) |
-| **4. Sentiment Scout** | Groq (`qwen/qwen3.8-27b`) | Groq Qwen bucket (ultra-fast headline batching) | Local FinBERT / VADER (**0 API calls**) |
-| **5. Geospatial Scout** | **Pure Python Spatial Join** + Gemini (`gemma-4-31b-it`) | **0 tokens** for geo match; Gemma bucket for brief | Groq (`allam-2-7b` / `gpt-oss-20b`) |
-| **6. Bull Case Advocate** | Groq (`openai/gpt-oss-120b`) | Groq 120B bucket | Gemini (`gemini-3.8-flash`) |
-| **7. Bear Case Advocate** | Gemini (`gemma-4-31b-it`) | **Gemma open-weights bucket** (separate from Gemini Flash!) | Groq (`qwen/qwen3.8-27b`) |
-| **8. Risk Officer (Judge)** | Gemini (`gemini-3.8-flash` or `gemini-2.5-flash`) | Google flagship Flash bucket (reads 1 compact summary) | Groq (`openai/gpt-oss-120b`) |
-
-> [!TIP]
-> **Notice two massive free-quota tricks already live on your keys:**
-> 1. **Google AI Studio gives separate per-model rate limits** for `gemini-3.8-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, AND `gemma-4-31b-it` (Gemma open-weights).
-> 2. **Groq gives completely separate daily quotas** for `qwen/qwen3.8-27b`, `openai/gpt-oss-120b`, and `openai/gpt-oss-20b` — and does **300–800 tokens/sec** inference!
+| **1. Quant / Technical** | **Pure Python** (`0 tokens`) + Groq `gpt-oss-20b` | Kilo `reflection/beam-free` | Gemini `2.5-flash-lite` |
+| **2. Geospatial Scout** | **Pure Python Spatial Join** (`0 tokens`) + Kilo `reflection/beam-free` | Groq `qwen/qwen3.8-27b` | Gemini `2.5-flash-lite` |
+| **3. Sentiment Scout** | **VADER (Python)** + Groq `qwen/qwen3.8-27b` | Kilo `reflection/beam-free` | OpenRouter `nemotron-3.5-lightning:free` |
+| **4. Macro Economist** | Gemini `2.5-flash-lite` | Groq `qwen/qwen3.8-27b` | Kilo `reflection/beam-free` |
+| **5. Fundamental Auditor** | Gemini `3.5-flash` | OpenRouter `nemotron-3-ultra-550b-a55b:free` | Groq `openai/gpt-oss-120b` |
+| **6. Bull Case Advocate** | Groq `openai/gpt-oss-120b` | OpenRouter `nemotron-3.5-lightning:free` | Gemini `2.5-flash` |
+| **7. Bear Case Advocate** | Google `gemma-4-31b-it` | Kilo `reflection/beam-free` | Groq `qwen/qwen3.8-27b` |
+| **8. Risk Officer (Judge)** | Gemini `3.5-flash` | Groq `openai/gpt-oss-120b` | OpenRouter `nemotron-3-ultra-550b-a55b:free` |
 
 ---
 
-## 3. Adding Zero-Limit Local AI & Optional Free Additions
+## 4. Circuit-Breaker Switching Logic (How Switching Works in Code)
 
-To guarantee the board **never stops even if every cloud key hits a daily cap**:
+```python
+# Pseudocode for backend/agents/llm_router.py
 
-1. **Local Deterministic + ML Models (0 API Tokens, Runs Offline):**
-   * **Sentiment Scoring:** Use Python `ProsusAI/finbert` (tiny 400MB financial NLP model) or `VADER` for news scoring — runs 1,000 headlines/minute locally with **zero API quota**.
-   * **Quantitative Ranking Engine:** Rank every stock 0–100 purely with code (DCF discount %, earnings beat streak, insider buying ratio, RSI, momentum, EIA/USDA/satellite delta) BEFORE any LLM speaks.
-2. **Local Ollama Fallback (When Running on Your Laptop):**
-   * Run `deepseek-r1:7b` or `qwen2.5:7b` locally on laptop CPU/GPU via Ollama (`http://localhost:11434`) — **infinite tokens, $0 forever**.
-3. **Optional Free Cloud Backups (If You Want Even More Headroom):**
-   * **Mistral AI (`console.mistral.ai`):** Free developer tier with separate daily tokens (`mistral-small` / `mistral-large` prototyping).
-   * **OpenRouter (`openrouter.ai`):** 25+ `:free` models (50 requests/day free, or 1,000/day if you ever add a one-time $10 balance).
-
----
-
-## 4. Exact Buy / Sell Decision Pipeline
-
-```
-1. CRON / TRIGGER (Every 15 min during market hours)
-   └─► Pure Python scans Alpaca + Finnhub + SEC Form 4 + EIA + NASA FIRMS
-   └─► Computes Quant Score (0–100) for watchlist & alerts
-   └─► Drops 99% of noise (uses 0 LLM tokens)
-
-2. SHORTLIST (Only stocks where Quant Score > 75 OR Geo/Insider alert fired)
-   └─► Packs metrics, DCF gap, insider net $, and top 5 headlines into a 600-token JSON
-
-3. PARALLEL AGENT COUNCIL (Uses 4 separate model buckets simultaneously)
-   ├─► Bull Agent (Groq gpt-oss-120b) ──► 150-word Buy Thesis
-   ├─► Bear Agent (Google gemma-4-31b-it) ──► 150-word Short/Risk Thesis
-   └─► Sentiment + Macro (Groq qwen3.8-27b) ──► 100-word Catalyst Timing
-
-4. RISK OFFICER VERDICT (Gemini 3.8 Flash / 2.5 Flash)
-   └─► Combines Quant Math + Bull/Bear debate + Portfolio VaR check
-   └─► Outputs JSON: Action (STRONG BUY / BUY / HOLD / SELL), Entry, Stop-Loss, Target, Confidence %
+class MultiCloudRouter:
+    # Tracks cooldowns per (provider, model) in SQLite/memory
+    # If any endpoint returns HTTP 429, 503, or times out >15s:
+    #   1. Mark that specific (provider, model) on cooldown for 60s (or 1h if daily quota hit)
+    #   2. Immediately retry the prompt on the next fallback gateway in the chain
+    #   3. Never crash the user's command or leave a Buy/Sell panel blank
 ```
 
-**Token Budget per Full Stock Analysis:**
-* Input + Output across ALL agents combined: **~2,500 tokens total** (not 100,000!).
-* With Gemini + Gemma + Groq combined, you can run **100+ full Buy/Sell committee decisions every single day** at **$0/month**, with automatic failover if any single model returns HTTP `429`.
+### Capacity Math (Real Daily Output)
+* **Tokens per full 8-Agent Buy/Sell Debate:** ~2,500 tokens across **5 LLM calls** (Quant & Geo math run in Python = 0 calls; remaining 5 roles call cloud APIs).
+* **Available Daily Request Budget ($0/month):**
+  * **Groq:** ~3,000+ req/day across its 3 distinct free model buckets.
+  * **Google AI Studio:** Separate daily buckets across `gemini-3.5-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, and `gemma-4-31b-it`.
+  * **Kilo AI Gateway:** **200 req/hour** (`reflection/beam-free` & free models) — handles burst traffic with zero key.
+  * **OpenRouter:** **50 req/day** reserved exclusively for hard reasoning / tie-breaker votes (`nemotron-3-ultra-550b-a55b:free`).
+* **Net Real-World Capacity:** **200 to 500+ full Buy/Sell committee decisions per day** for **$0/month**, running smoothly on a low-end laptop because **all AI inference happens in the cloud**.

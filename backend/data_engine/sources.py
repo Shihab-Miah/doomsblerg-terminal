@@ -180,24 +180,49 @@ FINRA_SHORT_URL  = "https://www.finra.org/investors/learn-to-invest/advanced-inv
 USPTO_API_URL    = "https://developer.uspto.gov/ds-api/oa_citations/v1/records"
 
 # ─────────────────────────────────────────────────────────────
-# AI AGENTS (Quota-Proof Multi-Provider Router)
-# Source 1: Google Gemini Flash + Gemma 4 (separate per-model free buckets)
-# Source 2: Groq LPU Inference (free tier: 30 RPM / 1,000+ RPD per model)
-# Source 3: Ollama local models (DeepSeek R1, Qwen 2.5) — zero API cost
+# AI AGENTS (Low-End Laptop: 100% Cloud Free-Tier Auto-Switcher — 0 Local RAM)
+# Circuit-breaker router switches across providers automatically on 429/503:
+#   1. Google AI Studio (Gemini Flash + Flash-Lite + Gemma 4 + Cloud Embeddings)
+#   2. Groq LPU Inference (Qwen 3.8 + GPT-OSS 120B/20B — separate model buckets)
+#   3. OpenRouter (:free models — 50 req/day across 11 free models)
+#   4. Kilo AI Gateway (200 req/hr anonymous / free tier across 17 free models)
+#   5. OpenCode Zen (optional failover if OPENCODE_API_KEY is configured)
 # ─────────────────────────────────────────────────────────────
+GEMINI_BASE_URL      = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_MODEL         = "gemini-3.5-flash"
 GEMINI_LITE_MODEL    = "gemini-2.5-flash-lite"
 GEMINI_OPEN_MODEL    = "gemma-4-31b-it"
+GEMINI_EMBED_MODEL   = "gemini-embedding-001"
 # Free key at: https://aistudio.google.com/apikey
 
 GROQ_BASE_URL        = "https://api.groq.com/openai/v1"
 GROQ_MODEL           = "qwen/qwen3.8-27b"
 GROQ_REASONING_MODEL = "openai/gpt-oss-120b"
+GROQ_FAST_MODEL      = "openai/gpt-oss-20b"
 # Free key at: https://console.groq.com/login
 
-OLLAMA_LOCAL_URL = "http://localhost:11434"  # Runs on your own machine
-OLLAMA_MODELS    = ["deepseek-r1:7b", "llama3.3:70b", "qwen2.5-finance"]
-# Install: https://ollama.ai (completely free, runs offline)
+OPENROUTER_BASE_URL  = "https://openrouter.ai/api/v1"
+OPENROUTER_MODELS    = [
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3.5-super-vl:free",
+    "inclusionai/ling-3.2-flash:free",
+    "google/gemma-4-31b-it:free",
+]
+# Free key at: https://openrouter.ai (50 req/day free across :free models)
+
+KILO_BASE_URL        = "https://ai-gateway.kilo.ai/api/v1"
+KILO_FREE_MODELS     = [
+    "reflection/beam-free",
+    "kilo-auto/free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+]
+# Works anonymously (200 req/hr per IP) or with free key from https://kilo.ai
+
+OPENCODE_ZEN_URL     = "https://opencode.ai/zen/v1"
+OPENCODE_FREE_MODELS = ["deepseek-v4.1-flash-free", "mimo-v2.6-flash-free", "big-pickle"]
+# Optional free key from https://opencode.ai/auth (anonymous pool is heavily throttled)
 
 # ─────────────────────────────────────────────────────────────
 # PAPER TRADING & ORDER EXECUTION
