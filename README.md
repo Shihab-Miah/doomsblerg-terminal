@@ -61,14 +61,14 @@ No memorizing codes. Just type what you want:
 ## Tech Stack (Low-End Laptop Friendly — 100% Cloud AI, $0/Month)
 
 ```
-Backend:     Python 3.12 + FastAPI (< 250 MB total RAM, zero local LLMs)
-Data:        Alpaca, Finnhub, FRED, SEC EDGAR, EIA, USDA NASS, NOAA, FMP, Tiingo, Twelve Data, Massive
-Compute:     NumPy, SciPy, pandas-ta, VADER (pure Python math — zero LLM arithmetic)
+Backend:     Python 3.12+ Stdlib HTTP Gateway + Optional FastAPI (< 100 MB RAM, zero local LLMs)
+Data:        Alpaca, Finnhub, FRED, SEC EDGAR, EIA, USDA NASS, NOAA, FMP, Tiingo, Twelve Data, Massive, Alpha Vantage
+Compute:     Pure Python Math (DCF, WACC, Black-Scholes, Z-Score, F-Score, RSI/MACD, Sharpe/VaR, VADER Lexicon)
 AI Router:   Auto-switching Multi-Cloud Council (Google Gemini + Groq + OpenRouter + Kilo Gateway)
-Geospatial:  CesiumJS, AISStream, OpenSky, adsb.lol, NASA FIRMS, USGS, CelesTrak, Open-Meteo
-Frontend:    Next.js 15 + TradingView Lightweight Charts
-Trading:     Alpaca Markets Paper & Live API
-Storage:     DuckDB + SQLite (FTS5 search) — embedded, zero cloud DB cost
+Geospatial:  God's Eye Canvas Globe, AISStream, adsb.lol, NASA FIRMS, USGS, CelesTrak, Open-Meteo
+Frontend:    Zero-Build Modern ES6/CSS Grid Workstation + Interactive HTML5 Canvas Charts & World Map
+Trading:     Zero-Lookahead Backtester + Alpaca Markets Paper Trading & Portfolio Stress Tester
+Storage:     Embedded SQLite TTL Cache & Circuit-Breaker Cooldown DB
 ```
 
 ---
@@ -82,9 +82,10 @@ doomsblerg-terminal/
 │   ├── compute_engine/   # All math and quant models (no LLMs here)
 │   ├── agents/           # 8-agent council + multi-cloud failover router
 │   ├── commands/         # Plain English command parser + legacy alias mapper
-│   └── api/              # REST Web API gateway (stdlib HTTP + FastAPI adapter)
+│   ├── trading/          # Historical backtester + Alpaca Paper execution & stress tests
+│   └── api/              # REST Web API gateway & static workstation server
 ├── frontend/
-│   └── src/              # Terminal workstation UI (Next.js — upcoming)
+│   └── src/              # Zero-build multi-panel web terminal UI (index.html, styles.css, app.js)
 ├── geospatial/           # God's Eye View intelligence + physical signal triggers
 └── docs/                 # Documentation & Plain English dictionary
 ```
@@ -126,7 +127,14 @@ Bloomberg Terminal: $2,000–$2,500/month. DoomsBlerg: **$0/month**.
 ✅ **Phase 2 — Pure Compute Engine: Complete & Live Verified (Math Identities + Live Quant Screener)**
 ✅ **Phase 3 — 4-Cloud AI Switcher Council: Complete & Live Verified (Failover + 8-Agent Debate)**
 ✅ **Phase 4 — Plain English Command System, God's Eye Triggers & Web API Gateway: Complete & Live Verified**
-🚧 **Next — Lightweight Workstation UI (`frontend/`) & Alpaca Paper Backtesting/Execution**
+✅ **Phase 5 — Lightweight Workstation UI (`frontend/`), Strategy Backtester & Alpaca Paper Broker: Complete & Live Verified**
+
+## Launch Web Workstation
+
+```bash
+python3 backend/cli.py serve 8000
+# Open http://127.0.0.1:8000 in your browser (laptop or phone)
+```
 
 ---
 

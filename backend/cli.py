@@ -42,6 +42,15 @@ from backend.compute_engine import (
     screen_watchlist,
 )
 from backend.data_engine.router import router
+from backend.trading import (
+    cancel_paper_order,
+    check_portfolio_risk,
+    get_paper_account,
+    get_paper_orders,
+    get_paper_positions,
+    place_paper_order,
+    run_backtest,
+)
 from geospatial.gods_eye import scan_gods_eye_triggers
 
 
@@ -98,6 +107,24 @@ COMMANDS = {
         ship_chokepoint=args[1] if len(args) > 1 else "Singapore",
     ),
     "commands": lambda args: list_supported_commands(),
+    # Phase 6/7: Backtesting & Alpaca Paper Execution
+    "backtest": lambda args: run_backtest(
+        args[0] if len(args) > 0 else "AAPL",
+        strategy=args[1] if len(args) > 1 else "sma_cross",
+        range_str=args[2] if len(args) > 2 else "2y",
+    ),
+    "account": lambda args: get_paper_account(),
+    "positions": lambda args: get_paper_positions(),
+    "orders": lambda args: get_paper_orders(),
+    "portfolio_risk": lambda args: check_portfolio_risk(),
+    "stress_test": lambda args: check_portfolio_risk(),
+    "trade_preview": lambda args: place_paper_order(
+        symbol=args[0] if len(args) > 0 else "AAPL",
+        qty=float(args[1]) if len(args) > 1 else 1.0,
+        side=args[2] if len(args) > 2 else "buy",
+        confirm=False,
+    ),
+    "cancel_order": lambda args: cancel_paper_order(args[0]),
 }
 
 

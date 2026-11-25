@@ -26,9 +26,19 @@ from backend.compute_engine import (
     score_stock,
 )
 from backend.data_engine.router import router
+from backend.trading import (
+    cancel_paper_order,
+    check_portfolio_risk,
+    get_paper_account,
+    get_paper_orders,
+    get_paper_positions,
+    place_paper_order,
+    run_backtest,
+)
 from geospatial.gods_eye import scan_gods_eye_triggers
 
 API_CATALOG = {
+    "GET /": "DoomsBlerg Interactive Web Terminal UI",
     "GET /health": "Gateway health & $0/month low-RAM status",
     "GET /api/endpoints": "List all HTTP endpoints and plain-English command examples",
     "GET /api/keys": "Configured API key readiness (booleans only, zero secrets)",
@@ -53,6 +63,13 @@ API_CATALOG = {
     "GET /api/gods-eye": "Unified God's Eye View physical-world trading triggers",
     "GET /api/briefing": "AI Morning Command Center Briefing",
     "GET /api/best-picks?tickers=AAPL,NVDA,MSFT": "Python quant ranker + AI debate on #1 pick",
+    "GET /api/backtest?ticker=AAPL&strategy=sma_cross&range=2y": "Historical strategy backtester vs Buy & Hold",
+    "GET /api/paper/account": "Alpaca simulated paper account balances",
+    "GET /api/paper/positions": "Open Alpaca paper positions",
+    "GET /api/paper/orders": "Recent Alpaca paper orders",
+    "GET /api/paper/risk": "Portfolio weighted Beta & crash/rate/oil stress scenarios",
+    "POST /api/paper/order": "Preview (`confirm:false`) or execute (`confirm:true`) Alpaca paper order",
+    "POST /api/paper/cancel": "Cancel an open Alpaca paper order (`{\"order_id\": \"...\"}`)",
 }
 
 
@@ -178,6 +195,58 @@ def dispatch_api_request(
             raw_t = _qp(qp, "tickers", "")
             tickers = [t.strip().upper() for t in raw_t.split(",") if t.strip()] if raw_t else None
             return 200, daily_pick_scan(tickers)
+
+        if method == "GET" and path == "/api/backtest":
+            ticker = _qp(qp, "ticker", "AAPL")
+            strategy = _qp(qp, "strategy", "sma_cross")
+            range_str = _qp(qp, "range", "2y")
+            capital = float(_qp(qp, "capital", "10000"))
+            stop_raw = _qp(qp, "stop", "8")
+            stop_pct = float(stop_raw) if stop_raw and float(stop_raw) > 0 else None
+            return 200, run_backtest(
+                ticker=ticker,
+                strategy=strategy,
+                range_str=range_str,
+                initial_capital=capital,
+                stop_loss_pct=stop_pct,
+            )
+
+        if method == "GET" and path == "/api/paper/account":
+            return 200, get_paper_account()
+
+        if method == "GET" and path == "/api/paper/positions":
+            return 200, get_paper_positions()
+
+        if method == "GET" and path == "/api/paper/orders":
+            return 200, get_paper_orders(
+                status=_qp(qp, "status", "all"),
+                limit=int(_qp(qp, "limit", "20")),
+            )
+
+        if method == "GET" and path == "/api/paper/risk":
+            return 200, check_portfolio_risk()
+
+        if method == "POST" and path == "/api/paper/order":
+            symbol = str(payload.get("symbol") or "").strip().upper()
+            if not symbol:
+                return 400, {"error": "Missing `symbol` in paper order request."}
+            qty = float(payload["qty"]) if payload.get("qty") not in (None, "") else None
+            notional = float(payload["notional"]) if payload.get("notional") not in (None, "") else None
+            limit_px = float(payload["limit_price"]) if payload.get("limit_price") not in (None, "") else None
+            return 200, place_paper_order(
+                symbol=symbol,
+                qty=qty,
+                notional=notional,
+                side=str(payload.get("side", "buy")),
+                order_type=str(payload.get("type", "market")),
+                limit_price=limit_px,
+                time_in_force=str(payload.get("time_in_force", "day")),
+                confirm=bool(payload.get("confirm", False)),
+            )
+
+        if method == "POST" and path == "/api/paper/cancel":
+            oid = str(payload.get("order_id") or "").strip()
+            return 200, cancel_paper_order(oid)
 
         return 404, {"error": f"Route not found: {method} {path}", "available": list(API_CATALOG.keys())}
     except ValueError as exc:

@@ -159,29 +159,53 @@ def scan_gods_eye_triggers(
 
     triggers = _build_signal_triggers(fires, quakes, flights, oil, ships)
     daily_wx = wx.get("daily") or {}
+    fire_points = (fires.get("oil_region_fires") or [])[:20] + (fires.get("farm_region_fires") or [])[:20]
+    quake_points = [
+        {
+            "latitude": q.get("latitude"),
+            "longitude": q.get("longitude"),
+            "magnitude": q.get("magnitude"),
+            "location_name": q.get("location_name"),
+        }
+        for q in (quakes.get("earthquakes") or [])[:25]
+        if q.get("latitude") is not None and q.get("longitude") is not None
+    ]
+    chokepoint_markers = [
+        {
+            "name": name,
+            "latitude": round((box[0][0] + box[1][0]) / 2.0, 2),
+            "longitude": round((box[0][1] + box[1][1]) / 2.0, 2),
+        }
+        for name, box in MAJOR_CHOKEPOINTS.items()
+    ]
     return {
         "trading_signal_triggers": triggers,
         "wildfires": {
             "total_sampled": fires.get("total_global_sampled"),
             "oil_fire_count": fires.get("oil_fire_count", 0),
             "farm_fire_count": fires.get("farm_fire_count", 0),
+            "points": fire_points,
         },
         "earthquakes": {
             "count": quakes.get("count", 0),
             "critical_hub_alerts": quakes.get("critical_hub_alerts", [])[:5],
             "top_event": (quakes.get("earthquakes") or [None])[0],
+            "points": quake_points,
         },
         "aviation": {
             "region": flights.get("region", flight_region),
+            "center": flights.get("center"),
             "total_aircraft": flights.get("total_aircraft", 0),
             "cargo_flights": len(flights.get("cargo_flights") or []),
             "executive_jets": len(flights.get("executive_jets") or []),
+            "points": (flights.get("sampled") or [])[:30],
         },
         "maritime": {
             "chokepoint": ships.get("chokepoint"),
             "status": ships.get("status"),
             "vessel_count": ships.get("vessel_count", 0),
             "monitored_chokepoints": list(MAJOR_CHOKEPOINTS.keys()),
+            "chokepoint_markers": chokepoint_markers,
         },
         "satellites": {
             "category": sats.get("category", "stations"),

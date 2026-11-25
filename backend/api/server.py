@@ -8,9 +8,19 @@ adapter when `fastapi` is installed.
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from pathlib import Path
 from typing import Any, Dict, Tuple
 
+from backend.data_engine.config import PROJECT_ROOT
 from .routes import dispatch_api_request
+
+FRONTEND_SRC_DIR = (PROJECT_ROOT / "frontend" / "src").resolve()
+_STATIC_ASSETS: Dict[str, Tuple[str, str]] = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/app.js": ("app.js", "application/javascript; charset=utf-8"),
+}
 
 
 class DoomsBlergHTTPHandler(BaseHTTPRequestHandler):
@@ -37,6 +47,20 @@ class DoomsBlergHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(200, {"status": "ok"})
 
     def do_GET(self) -> None:
+        clean_path = self.path.split("?", 1)[0].rstrip("/") or "/"
+        if clean_path in _STATIC_ASSETS:
+            rel_name, mime = _STATIC_ASSETS[clean_path]
+            file_path = (FRONTEND_SRC_DIR / rel_name).resolve()
+            if file_path.parent == FRONTEND_SRC_DIR and file_path.is_file():
+                content = file_path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(content)
+                return
+
         status, payload = dispatch_api_request("GET", self.path)
         self._send_json(status, payload)
 

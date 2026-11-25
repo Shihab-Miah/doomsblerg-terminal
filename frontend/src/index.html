@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoomsBlerg Terminal — $0/Month Financial &amp; Geospatial Workstation</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-row">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">DB</span>
+          <div>
+            <h1>DoomsBlerg Terminal</h1>
+            <p class="subtitle">Zero-Cost Cloud AI · Pure Python Quant · God's Eye Alpha</p>
+          </div>
+        </div>
+        <div class="status-pills" aria-live="polite">
+          <span id="pill-api" class="pill pill-muted">API: Checking...</span>
+          <span id="pill-cost" class="pill pill-accent">$0 / month</span>
+        </div>
+      </div>
+
+      <form id="command-form" class="command-bar" role="search" aria-label="Plain English Terminal Command">
+        <label for="command-input" class="sr-only">Ask DoomsBlerg in plain English</label>
+        <input
+          id="command-input"
+          type="search"
+          autocomplete="off"
+          placeholder="Ask in plain English: 'Debate NVDA', 'what is on fire', 'USD to EUR', 'backtest AAPL'..."
+        >
+        <button type="submit" class="btn btn-primary">Run Query</button>
+      </form>
+
+      <div class="quick-bar">
+        <span class="quick-label">Quick Jump:</span>
+        <div class="chip-row" id="quick-chips">
+          <button type="button" class="chip" data-ticker="AAPL">AAPL</button>
+          <button type="button" class="chip" data-ticker="NVDA">NVDA</button>
+          <button type="button" class="chip" data-ticker="MSFT">MSFT</button>
+          <button type="button" class="chip" data-ticker="TSLA">TSLA</button>
+          <button type="button" class="chip" data-query="morning briefing">Morning Briefing</button>
+          <button type="button" class="chip" data-query="best picks AAPL NVDA MSFT">Top Picks</button>
+          <button type="button" class="chip" data-query="what is on fire">Wildfires</button>
+          <button type="button" class="chip" data-query="yield curve">Yield Curve</button>
+        </div>
+      </div>
+
+      <nav class="tab-nav" aria-label="Terminal Views">
+        <button type="button" class="tab-btn active" data-view="stock">Stock &amp; Valuation</button>
+        <button type="button" class="tab-btn" data-view="council">8-Agent AI Council</button>
+        <button type="button" class="tab-btn" data-view="gods-eye">God's Eye Map</button>
+        <button type="button" class="tab-btn" data-view="macro">Macro, FX &amp; Commodities</button>
+        <button type="button" class="tab-btn" data-view="trading">Backtest &amp; Paper Trade</button>
+        <button type="button" class="tab-btn" data-view="console">Command Output</button>
+      </nav>
+    </header>
+
+    <main class="workspace">
+      <!-- KPI Strip -->
+      <section class="kpi-strip" aria-label="Active Instrument Summary">
+        <article class="kpi-card">
+          <span class="kpi-label">Active Ticker</span>
+          <strong id="kpi-ticker" class="kpi-value">AAPL</strong>
+          <small id="kpi-name" class="kpi-sub">Loading profile...</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Consensus Price</span>
+          <strong id="kpi-price" class="kpi-value">--</strong>
+          <small id="kpi-sources" class="kpi-sub">5-feed cross-verified</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Quant Score (Python)</span>
+          <strong id="kpi-quant" class="kpi-value">-- / 100</strong>
+          <small id="kpi-signal" class="kpi-sub">--</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">DCF Fair Value</span>
+          <strong id="kpi-dcf" class="kpi-value">--</strong>
+          <small id="kpi-dcf-gap" class="kpi-sub">--</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">ATR Stop / Target</span>
+          <strong id="kpi-levels" class="kpi-value">--</strong>
+          <small id="kpi-trend" class="kpi-sub">--</small>
+        </article>
+      </section>
+
+      <!-- View 1: Stock & Valuation -->
+      <section id="view-stock" class="view-grid active">
+        <article class="panel panel-wide">
+          <header class="panel-header">
+            <div>
+              <h2 id="chart-title">Price Action &amp; Technical Levels</h2>
+              <p id="chart-subtitle" class="panel-sub">Hover chart to inspect OHLCV bars, SMA-20, Stop-Loss &amp; Target</p>
+            </div>
+            <div class="panel-actions">
+              <label for="ticker-input" class="sr-only">Ticker</label>
+              <input id="ticker-input" class="input-sm" type="text" value="AAPL" maxlength="8" aria-label="Stock symbol">
+              <select id="range-select" class="input-sm" aria-label="Chart range">
+                <option value="1mo">1M</option>
+                <option value="3mo" selected>3M</option>
+                <option value="6mo">6M</option>
+                <option value="1y">1Y</option>
+              </select>
+              <button type="button" id="btn-load-stock" class="btn btn-secondary">Load</button>
+              <button type="button" id="btn-run-debate-fast" class="btn btn-primary">Debate Now</button>
+            </div>
+          </header>
+          <div class="canvas-wrap">
+            <canvas id="price-canvas" width="900" height="340"></canvas>
+            <div id="chart-readout" class="chart-readout">Move cursor over chart bars</div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <h2>Deterministic Fundamentals &amp; Risk</h2>
+          </header>
+          <div id="fundamentals-body" class="kv-grid">
+            <p class="muted">Loading deterministic valuation metrics...</p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <h2>News Mood &amp; Insider Form 4</h2>
+          </header>
+          <div id="sentiment-body" class="stack-list">
+            <p class="muted">Loading sentiment and SEC insider signals...</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- View 2: 8-Agent AI Council -->
+      <section id="view-council" class="view-grid">
+        <article class="panel panel-wide">
+          <header class="panel-header">
+            <div>
+              <h2>8-Agent Buy/Sell Investment Committee (4-Cloud Auto-Switcher)</h2>
+              <p class="panel-sub">Pure Python math &amp; SEC filings fed to Google Gemini, Groq, OpenRouter &amp; Kilo Gateway</p>
+            </div>
+            <div class="panel-actions">
+              <button type="button" id="btn-run-debate" class="btn btn-primary">Run 8-Agent Debate</button>
+              <button type="button" id="btn-run-audit" class="btn btn-secondary">Audit SEC 10-K</button>
+              <button type="button" id="btn-run-briefing" class="btn btn-secondary">Morning Briefing</button>
+            </div>
+          </header>
+          <div id="verdict-banner" class="verdict-banner">
+            <p class="muted">Click <strong>Run 8-Agent Debate</strong> to convene Bull, Bear, Macro, Auditor, Sentiment &amp; Chief Risk Officer agents.</p>
+          </div>
+          <div id="agents-grid" class="agents-grid"></div>
+        </article>
+      </section>
+
+      <!-- View 3: God's Eye Geospatial Globe -->
+      <section id="view-gods-eye" class="view-grid">
+        <article class="panel panel-wide">
+          <header class="panel-header">
+            <div>
+              <h2>God's Eye View — Live Physical World Alpha Map</h2>
+              <p class="panel-sub">NASA FIRMS Wildfires, USGS Earthquakes, ADS-B Flight Hubs &amp; Maritime Chokepoints</p>
+            </div>
+            <div class="panel-actions">
+              <select id="geo-hub-select" class="input-sm" aria-label="Aviation hub">
+                <option value="nyc">NYC Airspace</option>
+                <option value="taiwan">Taiwan Belt</option>
+                <option value="london">London</option>
+                <option value="dubai">Dubai / Hormuz</option>
+                <option value="dc">Washington DC</option>
+              </select>
+              <button type="button" id="btn-refresh-geo" class="btn btn-primary">Scan World Signals</button>
+            </div>
+          </header>
+          <div class="geo-layout">
+            <div class="canvas-wrap map-wrap">
+              <canvas id="world-canvas" width="900" height="420"></canvas>
+              <div class="map-legend">
+                <span class="leg-item"><i class="dot dot-fire"></i> Fires</span>
+                <span class="leg-item"><i class="dot dot-quake"></i> Earthquakes</span>
+                <span class="leg-item"><i class="dot dot-ship"></i> Maritime Chokepoints</span>
+                <span class="leg-item"><i class="dot dot-air"></i> ADS-B Aircraft</span>
+              </div>
+            </div>
+            <div id="geo-triggers" class="stack-list geo-triggers">
+              <p class="muted">Open God's Eye Map or click <strong>Scan World Signals</strong> to analyze live physical disruptions.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- View 4: Macro, FX & Commodities -->
+      <section id="view-macro" class="view-grid">
+        <article class="panel">
+          <header class="panel-header">
+            <h2>US Treasury Yield Curve &amp; FRED Macro</h2>
+            <button type="button" id="btn-refresh-macro" class="btn btn-secondary">Refresh</button>
+          </header>
+          <div class="canvas-wrap">
+            <canvas id="curve-canvas" width="520" height="220"></canvas>
+          </div>
+          <div id="macro-grid" class="kv-grid"></div>
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <h2>Live FX Matrix &amp; Commodities</h2>
+          </header>
+          <div id="fx-box" class="kv-grid"></div>
+          <div tabindex="0" role="region" aria-labelledby="commodities-cap" class="table-wrapper">
+            <table>
+              <caption id="commodities-cap">Global Benchmark Commodity Futures &amp; EIA Inventory</caption>
+              <thead>
+                <tr>
+                  <th>Commodity</th>
+                  <th>Price</th>
+                  <th>Day Chg</th>
+                  <th>Unit</th>
+                </tr>
+              </thead>
+              <tbody id="commodities-tbody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <!-- View 5: Strategy Backtest & Paper Trading -->
+      <section id="view-trading" class="view-grid">
+        <article class="panel">
+          <header class="panel-header">
+            <div>
+              <h2>Historical Strategy Backtester</h2>
+              <p class="panel-sub">Zero-lookahead simulation vs Buy &amp; Hold</p>
+            </div>
+          </header>
+          <form id="backtest-form" class="inline-form">
+            <input id="bt-ticker" class="input-sm" type="text" value="AAPL" aria-label="Backtest ticker">
+            <select id="bt-strategy" class="input-sm" aria-label="Strategy">
+              <option value="sma_cross">SMA 20/50 Cross</option>
+              <option value="rsi_reversion">RSI Mean Reversion</option>
+              <option value="macd_trend">MACD Trend</option>
+            </select>
+            <select id="bt-range" class="input-sm" aria-label="Period">
+              <option value="1y">1 Year</option>
+              <option value="2y" selected>2 Years</option>
+              <option value="5y">5 Years</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Run Backtest</button>
+          </form>
+          <div class="canvas-wrap">
+            <canvas id="backtest-canvas" width="560" height="220"></canvas>
+          </div>
+          <div id="backtest-summary" class="kv-grid"></div>
+          <div tabindex="0" role="region" aria-labelledby="bt-trades-cap" class="table-wrapper">
+            <table>
+              <caption id="bt-trades-cap">Recent Simulated Trades</caption>
+              <thead>
+                <tr>
+                  <th>Entry</th>
+                  <th>Exit</th>
+                  <th>Return</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="bt-trades-tbody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header class="panel-header">
+            <div>
+              <h2>Alpaca Paper Account &amp; Risk Stress Test</h2>
+              <p class="panel-sub">Simulated execution (`confirm` modal required)</p>
+            </div>
+            <button type="button" id="btn-refresh-paper" class="btn btn-secondary">Sync Alpaca</button>
+          </header>
+          <div id="paper-account-box" class="kv-grid"></div>
+          <div id="paper-stress-box" class="stack-list"></div>
+
+          <form id="paper-order-form" class="inline-form">
+            <input id="ord-symbol" class="input-sm" type="text" value="AAPL" required aria-label="Order symbol">
+            <input id="ord-qty" class="input-sm" type="number" min="0.01" step="0.01" value="1" required aria-label="Quantity">
+            <select id="ord-side" class="input-sm" aria-label="Order side">
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Preview Paper Order</button>
+          </form>
+
+          <div tabindex="0" role="region" aria-labelledby="positions-cap" class="table-wrapper">
+            <table>
+              <caption id="positions-cap">Open Paper Positions &amp; Recent Orders</caption>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Qty</th>
+                  <th>Value / Status</th>
+                  <th>P&amp;L / Action</th>
+                </tr>
+              </thead>
+              <tbody id="paper-positions-tbody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <!-- View 6: Plain-English Command Console -->
+      <section id="view-console" class="view-grid">
+        <article class="panel panel-wide">
+          <header class="panel-header">
+            <div>
+              <h2>Plain English Command Response &amp; Multi-Cloud Health</h2>
+              <p id="console-meta" class="panel-sub">Supports natural questions, stock tickers, and legacy Bloomberg aliases</p>
+            </div>
+            <button type="button" id="btn-ai-health" class="btn btn-secondary">Check 4-Cloud AI Health</button>
+          </header>
+          <pre id="console-output" class="json-pre">Run any query above to see full structured intelligence.</pre>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <!-- Accessible Native Modal Dialog for Paper Order Confirmation -->
+  <dialog id="order-confirm-dialog" aria-labelledby="order-dialog-title" closedby="any">
+    <h1 id="order-dialog-title">Confirm Simulated Paper Order</h1>
+    <div id="order-dialog-body" class="dialog-body"></div>
+    <form method="dialog" class="dialog-actions">
+      <button type="submit" value="cancel" class="btn btn-secondary" autofocus>Cancel</button>
+      <button type="submit" value="confirm" class="btn btn-primary">Submit Paper Order</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

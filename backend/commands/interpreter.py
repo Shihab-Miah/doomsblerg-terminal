@@ -27,6 +27,15 @@ from backend.compute_engine import (
     screen_watchlist,
 )
 from backend.data_engine.router import router
+from backend.trading import (
+    cancel_paper_order,
+    check_portfolio_risk,
+    get_paper_account,
+    get_paper_orders,
+    get_paper_positions,
+    place_paper_order,
+    run_backtest,
+)
 from geospatial.gods_eye import scan_gods_eye_triggers
 
 COMPANY_NAME_TO_TICKER: Dict[str, str] = {
@@ -227,11 +236,29 @@ def parse_plain_command(query_text: str) -> Optional[Dict[str, Any]]:
     if _has_any(low, ("api keys", "key inventory", "check keys")) or low == "keys":
         return {"intent": "keys", "args": [], "hint": "Configured Free API Keys"}
 
-    # 3. AI Agent Council (high priority before generic stock info)
+    # 3. AI Agent Council & Portfolio/Backtesting (high priority before generic stock info)
     if _has_any(low, ("morning briefing", "what should i watch*", "daily briefing", "briefing")):
         return {"intent": "briefing", "args": [], "hint": "Morning Command Center Briefing"}
     if _has_any(low, ("best pick*", "what should i buy", "top pick*", "stock screener", "screen", "best stocks", "what to buy")):
         return {"intent": "best_picks", "args": tickers, "hint": "Quant Pre-Filter + AI Top Pick"}
+    if _has_any(low, ("backtest*", "simulate strategy", "test strategy")):
+        strat = "rsi_reversion" if "rsi" in low else ("macd_trend" if "macd" in low else "sma_cross")
+        return {"intent": "backtest", "args": [lead_ticker or "AAPL", strat], "hint": f"Historical Strategy Backtest ({strat})"}
+    if _has_any(low, ("stress test*", "portfolio risk", "check portfolio")):
+        return {"intent": "portfolio_risk", "args": [], "hint": "Portfolio Concentration, Beta & Crash Stress Test"}
+    if _has_any(low, ("paper account", "portfolio", "my positions", "open positions", "holdings")):
+        return {"intent": "portfolio", "args": [], "hint": "Alpaca Paper Account & Open Positions"}
+    if _has_any(low, ("my orders", "open orders", "recent orders")) or first_tok == "orders":
+        return {"intent": "orders", "args": [], "hint": "Alpaca Paper Trading Orders"}
+    order_match = re.search(r"^(buy|sell)\s+(\d+(?:\.\d+)?)\s+(?:shares?\s+of\s+)?([A-Za-z&.-]{1,22})\b", low)
+    if order_match:
+        raw_sym = order_match.group(3).strip()
+        ord_sym = COMPANY_NAME_TO_TICKER.get(raw_sym.lower(), raw_sym.upper())
+        return {
+            "intent": "paper_order_preview",
+            "args": [ord_sym, order_match.group(2), order_match.group(1)],
+            "hint": "Safe Pre-Trade Paper Order Preview (requires confirmation to execute)",
+        }
     if _has_any(low, ("debate", "bull vs bear", "buy or sell", "should i buy", "should i sell", "investment committee")):
         return {"intent": "debate", "args": [lead_ticker or "AAPL"], "hint": "8-Agent Buy/Sell Committee Debate"}
     if _has_any(low, ("audit filing", "read 10k", "read 10-k", "10-k red flag*", "10q red flag*", "red flags")) or first_tok == "audit":
@@ -341,6 +368,9 @@ def list_supported_commands() -> Dict[str, Any]:
             "who is buying TSLA",
             "audit filing AAPL",
             "debate Tesla",
+            "backtest NVDA rsi",
+            "check portfolio risk",
+            "buy 1 AAPL",
             "best picks AAPL NVDA MSFT",
             "morning briefing",
             "yield curve",
@@ -405,6 +435,16 @@ def _execute_intent(intent: str, args: List[str]) -> Any:
         "audit": lambda: audit_filing(sym),
         "briefing": morning_briefing,
         "best_picks": lambda: daily_pick_scan(args or None),
+        "backtest": lambda: run_backtest(sym, strategy=args[1] if len(args) > 1 else "sma_cross"),
+        "portfolio": lambda: {"account": get_paper_account(), **get_paper_positions()},
+        "portfolio_risk": check_portfolio_risk,
+        "orders": get_paper_orders,
+        "paper_order_preview": lambda: place_paper_order(
+            symbol=sym,
+            qty=float(args[1]) if len(args) > 1 else 1.0,
+            side=args[2] if len(args) > 2 else "buy",
+            confirm=False,
+        ),
     }
     if intent not in handlers:
         raise ValueError(f"Unsupported command intent: {intent}")
