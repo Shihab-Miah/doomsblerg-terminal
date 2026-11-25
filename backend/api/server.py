@@ -9,10 +9,20 @@ adapter when `fastapi` is installed.
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
-from typing import Any, Dict, Tuple
+import re
+import socket
+import subprocess
+from typing import Any, Dict, List, Tuple
 
 from backend.data_engine.config import PROJECT_ROOT
 from .routes import dispatch_api_request
+
+
+class DoomsBlergHTTPServer(ThreadingHTTPServer):
+    """Threaded HTTP server configured cleanly for laptop Chrome & mobile hotspot LAN."""
+
+    daemon_threads = True
+    allow_reuse_address = True
 
 FRONTEND_SRC_DIR = (PROJECT_ROOT / "frontend" / "src").resolve()
 _STATIC_ASSETS: Dict[str, Tuple[str, str]] = {
@@ -48,6 +58,11 @@ class DoomsBlergHTTPHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         clean_path = self.path.split("?", 1)[0].rstrip("/") or "/"
+        if clean_path == "/favicon.ico":
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if clean_path in _STATIC_ASSETS:
             rel_name, mime = _STATIC_ASSETS[clean_path]
             file_path = (FRONTEND_SRC_DIR / rel_name).resolve()
@@ -80,16 +95,73 @@ class DoomsBlergHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(status, payload)
 
 
-def create_http_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
-    """Create a bound stdlib ThreadingHTTPServer instance ready to serve."""
-    return ThreadingHTTPServer((host, port), DoomsBlergHTTPHandler)
+def detect_lan_urls(port: int = 8000) -> List[Dict[str, str]]:
+    """Detect active Hotspot/Wi-Fi IPv4 URLs so another device on the same LAN can connect."""
+    found: List[Dict[str, str]] = []
+    seen = set()
+
+    try:
+        out = subprocess.run(["ip", "-4", "addr", "show"], capture_output=True, text=True, timeout=3).stdout
+        cur_iface = ""
+        for line in out.splitlines():
+            m_iface = re.match(r"^\d+:\s+([^:@]+)", line)
+            if m_iface:
+                cur_iface = m_iface.group(1).strip()
+            m_ip = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/", line)
+            if m_ip:
+                ip = m_ip.group(1)
+                if ip.startswith("127.") or ip.startswith("192.0.0."):
+                    continue
+                if ip in seen:
+                    continue
+                seen.add(ip)
+                is_hotspot_or_wifi = cur_iface.startswith(("ap", "wlan", "swlan", "en", "eth", "wl"))
+                found.append(
+                    {
+                        "interface": cur_iface or "lan",
+                        "ip": ip,
+                        "url": f"http://{ip}:{port}",
+                        "priority": "primary_hotspot_wifi" if is_hotspot_or_wifi else "secondary",
+                    }
+                )
+    except Exception:
+        pass
+
+    if not found:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+            s.close()
+            if ip and not ip.startswith("127."):
+                found.append({"interface": "default", "ip": ip, "url": f"http://{ip}:{port}", "priority": "primary_hotspot_wifi"})
+        except Exception:
+            pass
+
+    found.sort(key=lambda item: (0 if item["priority"] == "primary_hotspot_wifi" else 1, item["interface"]))
+    return found
+
+
+def create_http_server(host: str = "127.0.0.1", port: int = 8000) -> DoomsBlergHTTPServer:
+    """Create a bound stdlib threaded HTTP server instance ready to serve."""
+    return DoomsBlergHTTPServer((host, port), DoomsBlergHTTPHandler)
 
 
 def serve_forever(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Start the DoomsBlerg HTTP API gateway blocking until interrupted."""
+    if host == "0.0.0.0":
+        try:
+            subprocess.run(["termux-wake-lock"], capture_output=True, timeout=2)
+        except Exception:
+            pass
+
     server = create_http_server(host=host, port=port)
     actual_host, actual_port = server.server_address[:2]
-    print(f"DoomsBlerg Web API listening on http://{actual_host}:{actual_port}")
+    print(f"DoomsBlerg Terminal Server listening on http://{actual_host}:{actual_port}", flush=True)
+    print(f"  Local URL:         http://127.0.0.1:{actual_port}", flush=True)
+    if actual_host == "0.0.0.0":
+        for entry in detect_lan_urls(actual_port):
+            print(f"  Hotspot / LAN URL: {entry['url']}  [{entry['interface']} - {entry['priority']}]", flush=True)
     try:
         server.serve_forever()
     finally:

@@ -132,8 +132,13 @@ Bloomberg Terminal: $2,000–$2,500/month. DoomsBlerg: **$0/month**.
 ## Launch Web Workstation
 
 ```bash
+# On the same phone / laptop:
 python3 backend/cli.py serve 8000
-# Open http://127.0.0.1:8000 in your browser (laptop or phone)
+# Open http://127.0.0.1:8000
+
+# Host on Android phone + open from laptop Chrome over Mobile Hotspot:
+python3 backend/cli.py hotspot
+# Automatically detects and prints your live http://<hotspot-ip>:8000 URL
 ```
 
 ---

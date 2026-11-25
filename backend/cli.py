@@ -146,7 +146,7 @@ def _interactive_loop() -> int:
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
         print("DoomsBlerg CLI — Available commands:")
-        print("  " + ", ".join(sorted([*COMMANDS.keys(), "interactive", "serve"])))
+        print("  " + ", ".join(sorted([*COMMANDS.keys(), "hotspot", "interactive", "serve"])))
         print("Or pass any plain-English sentence directly, e.g.:")
         print('  python3 backend/cli.py "Show me Apple\'s financials"')
         return 0
@@ -156,6 +156,10 @@ def main() -> int:
 
     if cmd == "interactive":
         return _interactive_loop()
+    if cmd == "hotspot":
+        port = int(args[0]) if args else 8000
+        serve_forever(host="0.0.0.0", port=port)
+        return 0
     if cmd == "serve":
         port = int(args[0]) if args else 8000
         host = args[1] if len(args) > 1 else "127.0.0.1"

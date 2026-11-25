@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.api import create_http_server
+from backend.api.server import detect_lan_urls
 from backend.commands import parse_plain_command
 from backend.trading import (
     cancel_paper_order,
@@ -140,7 +141,7 @@ def run_live_tests() -> int:
         print(f"       -> EstValue=${preview['estimated_order_value']} | StopHint=${preview['suggested_atr_stop_loss']}")
 
     def _ui_and_api_http() -> dict:
-        srv = create_http_server("127.0.0.1", 0)
+        srv = create_http_server("0.0.0.0", 0)
         port = srv.server_address[1]
         th = threading.Thread(target=srv.serve_forever, daemon=True)
         th.start()
@@ -148,6 +149,14 @@ def run_live_tests() -> int:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as r:
                 html = r.read().decode()
                 assert r.status == 200 and "DoomsBlerg Terminal" in html and "order-confirm-dialog" in html
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/favicon.ico", timeout=5) as r:
+                assert r.status == 204
+            lan_urls = detect_lan_urls(port)
+            hotspot_url = None
+            if lan_urls:
+                hotspot_url = lan_urls[0]["url"]
+                with urllib.request.urlopen(f"{hotspot_url}/health", timeout=5) as r:
+                    assert r.status == 200 and json.loads(r.read().decode())["status"] == "ok"
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/styles.css", timeout=5) as r:
                 css = r.read().decode()
                 assert r.status == 200 and "@layer reset" in css
@@ -160,7 +169,14 @@ def run_live_tests() -> int:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/paper/account", timeout=10) as r:
                 pa = json.loads(r.read().decode())
                 assert r.status == 200 and pa["mode"] == "PAPER_SIMULATED"
-            return {"port": port, "html_bytes": len(html), "css_bytes": len(css), "js_bytes": len(js), "paper_equity": pa["equity"]}
+            return {
+                "port": port,
+                "hotspot_url_verified": hotspot_url,
+                "html_bytes": len(html),
+                "css_bytes": len(css),
+                "js_bytes": len(js),
+                "paper_equity": pa["equity"],
+            }
         finally:
             srv.shutdown()
             srv.server_close()
