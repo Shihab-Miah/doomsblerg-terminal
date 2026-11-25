@@ -1,0 +1,7 @@
+# DoomsBlerg Terminal Requirements
+# Note: Phase 1 Data Engine runs on pure Python 3.12+ stdlib with ZERO required dependencies!
+# Install these optional lightweight packages only when launching the Phase 5 web API / WebSockets:
+fastapi>=0.115.0
+uvicorn>=0.32.0
+websockets>=13.0
+vaderSentiment>=3.3.2

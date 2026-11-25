@@ -1,210 +1,137 @@
 """
-DoomsBlerg Data Router
-======================
-The central hub for all data requests.
+DoomsBlerg Unified Data Router (Phase 1 Core)
+============================================
+Single plain-English entry point uniting all 17 keys + keyless feeds
+across Equities, Options, Macro, SEC Filings, Energy, Agriculture, Weather,
+Geospatial Telemetry, News, and Crypto Perpetuals.
 
-This is equivalent to Bloomberg's internal data normalization layer —
-every asset class (stocks, bonds, options, macro, FX, commodities, geospatial)
-flows through one unified interface and returns clean, standardized data.
-
-No LLM touches this module. Only real data from real sources.
+Runs cleanly on Python 3.14 stdlib with zero third-party installs required.
 """
 
-from openbb import obb
-import yfinance as yf
-import pandas as pd
-from typing import Optional
+from typing import Any, Dict, List, Optional
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from backend.data_engine import (
+    commodities_geo,
+    config,
+    equities,
+    http_client,
+    macro_bonds,
+    sec_intelligence,
+)
+from geospatial import earth_events, flight_tracker, ship_tracker
 
 
-# ─────────────────────────────────────────────────────────────
-# EQUITIES
-# ─────────────────────────────────────────────────────────────
+class DoomsBlergRouter:
+    """Unified, plain-English financial and geospatial data router."""
 
-def get_stock_quote(ticker: str, provider: str = "polygon") -> dict:
-    """Get real-time quote for a stock. Same data Bloomberg shows on quote page."""
-    result = obb.equity.price.quote(ticker, provider=provider)
-    return result.to_df().to_dict(orient="records")[0]
+    def price(self, ticker: str) -> Dict[str, Any]:
+        """Cross-verified live stock quote across Alpaca, Finnhub, Tiingo, Twelve Data & Yahoo."""
+        return equities.get_quote_cross_verified(ticker)
 
+    def about(self, ticker: str) -> Dict[str, Any]:
+        """Plain-English company profile (replaces Bloomberg DES)."""
+        return equities.get_company_overview(ticker)
 
-def get_stock_history(ticker: str, start: str, end: str, interval: str = "1d") -> pd.DataFrame:
-    """Get historical OHLCV price data. Identical to Bloomberg GP (price graph) data."""
-    data = yf.download(ticker, start=start, end=end, interval=interval, progress=False)
-    return data
+    def history(self, ticker: str, range_str: str = "3mo", interval: str = "1d") -> List[Dict[str, Any]]:
+        """Historical OHLCV bars (replaces Bloomberg GP)."""
+        return equities.get_historical_prices(ticker, range_str=range_str, interval=interval)
 
+    def financials(self, ticker: str, limit: int = 4) -> Dict[str, Any]:
+        """Income statement, balance sheet, and cash flows (replaces Bloomberg FA)."""
+        return equities.get_financial_statements(ticker, limit=limit)
 
-def get_financials(ticker: str) -> dict:
-    """
-    Get full financial statements — income statement, balance sheet, cash flow.
-    Same data Bloomberg shows under FA (Financial Analysis).
-    Data comes directly from SEC filings so it's 100% identical.
-    """
-    income = obb.equity.fundamental.income(ticker, period="annual", limit=5)
-    balance = obb.equity.fundamental.balance(ticker, period="annual", limit=5)
-    cash_flow = obb.equity.fundamental.cash(ticker, period="annual", limit=5)
-    return {
-        "income_statement": income.to_df(),
-        "balance_sheet": balance.to_df(),
-        "cash_flow": cash_flow.to_df(),
-    }
+    def forecasts(self, ticker: str) -> Dict[str, Any]:
+        """Wall Street analyst recommendations & key valuation ratios (replaces EE)."""
+        return equities.get_analyst_forecasts(ticker)
 
+    def options(self, ticker: str, limit: int = 30) -> Dict[str, Any]:
+        """Live options chain snapshots with Greeks & IV (replaces OMON)."""
+        return equities.get_options_chain(ticker, limit=limit)
 
-def get_company_overview(ticker: str) -> dict:
-    """
-    Get the company profile page — same as Bloomberg DES (Description).
-    Returns: name, sector, industry, description, key metrics, officers.
-    """
-    profile = obb.equity.profile(ticker)
-    return profile.to_df().to_dict(orient="records")[0]
+    def filings(self, ticker: str, forms: Optional[List[str]] = None, limit: int = 10) -> Dict[str, Any]:
+        """Direct SEC EDGAR filings with official URLs (replaces CF)."""
+        return sec_intelligence.get_recent_filings(ticker, forms=forms, limit=limit)
 
+    def insiders(self, ticker: str, limit: int = 15) -> Dict[str, Any]:
+        """SEC Form 4 insider buying and selling summary (replaces INSDR)."""
+        return sec_intelligence.get_insider_activity(ticker, limit=limit)
 
-def get_earnings_estimates(ticker: str) -> pd.DataFrame:
-    """
-    Get analyst earnings and revenue forecasts — same as Bloomberg EE (Earnings Estimates).
-    Returns consensus EPS and revenue estimates for upcoming quarters.
-    """
-    estimates = obb.equity.estimates.consensus(ticker)
-    return estimates.to_df()
+    def yield_curve(self, year: Optional[int] = None) -> Dict[str, Any]:
+        """US Treasury daily yield curve & inversion spreads (replaces YCRV)."""
+        return macro_bonds.get_yield_curve(year=year)
 
+    def macro(self, query: str = "dashboard") -> Dict[str, Any]:
+        """Macroeconomics snapshot or specific indicator by plain English name."""
+        if query.lower().strip() == "dashboard":
+            return macro_bonds.get_macro_dashboard()
+        return macro_bonds.get_macro_indicator(query)
 
-def get_sec_filings(ticker: str, form_type: str = "10-K", limit: int = 5) -> pd.DataFrame:
-    """
-    Get SEC filing links — same as Bloomberg CF (Company Filings).
-    Returns links to actual SEC EDGAR documents (10-K annual reports, 10-Q quarterly, 8-K events).
-    """
-    filings = obb.equity.fundamental.filings(ticker, type=form_type, limit=limit)
-    return filings.to_df()
+    def energy_inventories(self, limit: int = 8) -> Dict[str, Any]:
+        """Weekly US crude oil stocks from EIA Open Data."""
+        return commodities_geo.get_energy_inventories(limit=limit)
 
+    def crops(self, commodity: str = "CORN", year: int = 2025, state: str = "IA") -> Dict[str, Any]:
+        """Official USDA NASS crop statistics."""
+        return commodities_geo.get_crop_progress(commodity=commodity, year=year, state=state)
 
-def get_insider_transactions(ticker: str) -> pd.DataFrame:
-    """
-    Get insider buying and selling activity — same as Bloomberg INSDR.
-    Data from SEC Form 4 filings. Free and 100% identical to Bloomberg.
-    """
-    insiders = obb.equity.ownership.insider_trading(ticker)
-    return insiders.to_df()
+    def weather(self, lat: float = 41.88, lon: float = -93.10, days: int = 7) -> Dict[str, Any]:
+        """Global 7-day forecast (defaults to US Corn Belt)."""
+        return commodities_geo.get_weather_forecast(lat=lat, lon=lon, days=days)
 
+    def wildfires(self) -> Dict[str, Any]:
+        """Global satellite fires filtered for oil hubs and crop belts (NASA FIRMS)."""
+        return earth_events.scan_commodity_wildfires()
 
-# ─────────────────────────────────────────────────────────────
-# OPTIONS
-# ─────────────────────────────────────────────────────────────
+    def earthquakes(self, min_magnitude: float = 4.5, days_back: int = 3) -> Dict[str, Any]:
+        """Real-time USGS earthquakes with semiconductor/port/mine alerts."""
+        return earth_events.get_recent_earthquakes(min_magnitude=min_magnitude, days_back=days_back)
 
-def get_options_chain(ticker: str) -> pd.DataFrame:
-    """
-    Get the full options chain — same as Bloomberg OMON (Options Monitor).
-    Returns all available strike prices, expiration dates, implied volatility,
-    volume, open interest. Greeks computed separately in compute engine.
-    """
-    options = obb.derivatives.options.chains(ticker, provider="cboe")
-    return options.to_df()
+    def flights(self, region: str = "nyc") -> Dict[str, Any]:
+        """Live ADS-B flights, air cargo, and executive jets via adsb.lol."""
+        return flight_tracker.get_flights_in_preset(region)
 
+    def chokepoints(self) -> Dict[str, Any]:
+        """Return maritime chokepoint bounding boxes for God's Eye View."""
+        return ship_tracker.MAJOR_CHOKEPOINTS
 
-# ─────────────────────────────────────────────────────────────
-# FIXED INCOME (BONDS)
-# ─────────────────────────────────────────────────────────────
+    def news(self, ticker: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
+        """Curated real-time financial news combining Finnhub + Google News RSS."""
+        return commodities_geo.get_market_news(ticker=ticker, limit=limit)
 
-def get_treasury_yield_curve(country: str = "us") -> pd.DataFrame:
-    """
-    Get the government bond yield curve — same as Bloomberg YCRV (Yield Curve).
-    Shows interest rates across different time horizons (3-month, 2-year, 10-year, etc.)
-    Data from US Treasury / FRED — free and identical to Bloomberg.
-    """
-    curve = obb.fixedincome.government.yield_curve(country=country)
-    return curve.to_df()
+    def crypto_perps(self, symbols: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Live Hyperliquid funding rates, mark prices, and open interest."""
+        return commodities_geo.get_crypto_perps(symbols=symbols)
 
-
-def get_money_market_rates() -> dict:
-    """
-    Get central bank rates, overnight rates, and short-term market rates.
-    Same as Bloomberg BTMM (Treasury and Money Markets dashboard).
-    """
-    fed_funds = obb.economy.fred_series("FEDFUNDS")       # Federal Funds Rate
-    sofr = obb.economy.fred_series("SOFR")                # Secured Overnight Financing Rate
-    tbill_3m = obb.economy.fred_series("DTB3")            # 3-Month Treasury Bill
-    tbill_1y = obb.economy.fred_series("DTB1YR")          # 1-Year Treasury Bill
-    return {
-        "fed_funds_rate": fed_funds.to_df(),
-        "sofr": sofr.to_df(),
-        "tbill_3_month": tbill_3m.to_df(),
-        "tbill_1_year": tbill_1y.to_df(),
-    }
+    def key_inventory(self) -> Dict[str, bool]:
+        """Report which configured API keys are populated (without exposing secrets)."""
+        names = [
+            "FRED_API_KEY",
+            "FINNHUB_API_KEY",
+            "NASA_FIRMS_API_KEY",
+            "ALPACA_API_KEY",
+            "ALPACA_SECRET_KEY",
+            "ALPHA_VANTAGE_API_KEY",
+            "EIA_API_KEY",
+            "USDA_NASS_API_KEY",
+            "NOAA_CDO_TOKEN",
+            "TWELVEDATA_API_KEY",
+            "FMP_API_KEY",
+            "MASSIVE_API_KEY",
+            "TIINGO_API_KEY",
+            "GROQ_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "AISSTREAM_API_KEY",
+        ]
+        return {name: bool(config.get_key(name)) for name in names}
 
 
-# ─────────────────────────────────────────────────────────────
-# MACROECONOMICS
-# ─────────────────────────────────────────────────────────────
-
-def get_macro_indicator(fred_series_id: str) -> pd.DataFrame:
-    """
-    Get any macroeconomic data series from the Federal Reserve.
-    Same data Bloomberg shows in ECO and ECST functions.
-    Examples: "CPIAUCSL" = inflation, "UNRATE" = unemployment, "GDP" = GDP growth.
-    Data is 100% identical to Bloomberg — both pull from FRED.
-    """
-    data = obb.economy.fred_series(fred_series_id)
-    return data.to_df()
-
-
-def get_economic_calendar() -> pd.DataFrame:
-    """
-    Get upcoming economic data releases with market consensus estimates.
-    Same as Bloomberg ECO (Economic Calendar).
-    """
-    calendar = obb.economy.calendar()
-    return calendar.to_df()
-
-
-# ─────────────────────────────────────────────────────────────
-# FOREX
-# ─────────────────────────────────────────────────────────────
-
-def get_fx_rates(base: str = "USD") -> pd.DataFrame:
-    """
-    Get current foreign exchange rates matrix — same as Bloomberg FXC.
-    Shows the value of one currency against all others.
-    """
-    fx = obb.currency.price.historical(symbol=f"{base}", provider="fmp")
-    return fx.to_df()
-
-
-# ─────────────────────────────────────────────────────────────
-# COMMODITIES
-# ─────────────────────────────────────────────────────────────
-
-def get_commodities_overview() -> dict:
-    """
-    Get prices for major commodities — same as Bloomberg COMS.
-    Energy (crude oil, natural gas), metals (gold, silver, copper),
-    agriculture (wheat, corn, soybeans).
-    """
-    commodities = obb.commodity.price.spot(provider="fmp")
-    return commodities.to_df()
-
-
-# ─────────────────────────────────────────────────────────────
-# NEWS & SENTIMENT
-# ─────────────────────────────────────────────────────────────
-
-def get_financial_news(ticker: Optional[str] = None, limit: int = 20) -> pd.DataFrame:
-    """
-    Get financial news headlines — same as Bloomberg TOP and N functions.
-    If ticker provided, returns company-specific news.
-    If no ticker, returns top global financial headlines.
-    """
-    if ticker:
-        news = obb.news.company(ticker, limit=limit)
-    else:
-        news = obb.news.world(limit=limit)
-    return news.to_df()
-
-
-# ─────────────────────────────────────────────────────────────
-# STOCK SCREENING
-# ─────────────────────────────────────────────────────────────
-
-def screen_stocks(filters: dict) -> pd.DataFrame:
-    """
-    Screen stocks by any criteria — same as Bloomberg SRCH (Equity Screener).
-    Filter by: sector, market cap, P/E ratio, revenue growth, dividend yield, etc.
-    """
-    screener = obb.equity.screener(**filters)
-    return screener.to_df()
+# Module-level singleton & convenience functions
+router = DoomsBlergRouter()
+clear_cache = http_client.clear_expired_cache
