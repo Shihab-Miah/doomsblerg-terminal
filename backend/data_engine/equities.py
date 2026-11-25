@@ -248,42 +248,85 @@ def get_company_overview(ticker: str) -> Dict[str, Any]:
     return profile
 
 
-def get_historical_prices(ticker: str, range_str: str = "3mo", interval: str = "1d") -> List[Dict[str, Any]]:
-    """Return clean OHLCV price history (replaces Bloomberg GP)."""
-    ticker = ticker.upper().strip()
+def _history_from_massive(ticker: str, range_str: str = "3mo") -> List[Dict[str, Any]]:
+    """Fallback daily OHLCV bars from Massive (Polygon-compatible API)."""
+    key = get_key("MASSIVE_API_KEY")
+    if not key:
+        return []
+    from datetime import timedelta
+
+    days_map = {"5d": 10, "1mo": 32, "3mo": 95, "6mo": 185, "1y": 370, "2y": 740, "5y": 1830}
+    days = days_map.get(range_str, 95)
+    end_d = datetime.now(timezone.utc).date()
+    start_d = end_d - timedelta(days=days)
     data = fetch_json(
-        f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}",
-        params={"range": range_str, "interval": interval},
-        headers={"User-Agent": "Mozilla/5.0"},
+        f"https://api.massive.com/v2/aggs/ticker/{ticker}/range/1/day/{start_d.isoformat()}/{end_d.isoformat()}",
+        params={"adjusted": "true", "sort": "asc", "apiKey": key},
         ttl_seconds=1800,
     )
-    result = ((data.get("chart") or {}).get("result") or [None])[0]
-    if not result:
-        raise RuntimeError(f"No historical chart data for {ticker}")
-
-    timestamps = result.get("timestamp") or []
-    quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
-    opens = quote.get("open") or []
-    highs = quote.get("high") or []
-    lows = quote.get("low") or []
-    closes = quote.get("close") or []
-    volumes = quote.get("volume") or []
-
     bars: List[Dict[str, Any]] = []
-    for idx, ts in enumerate(timestamps):
-        if closes[idx] is None:
+    for row in data.get("results") or []:
+        ts_ms = row.get("t")
+        if ts_ms is None or row.get("c") is None:
             continue
         bars.append(
             {
-                "date": datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d"),
-                "open": round(opens[idx], 4) if opens[idx] is not None else None,
-                "high": round(highs[idx], 4) if highs[idx] is not None else None,
-                "low": round(lows[idx], 4) if lows[idx] is not None else None,
-                "close": round(closes[idx], 4),
-                "volume": int(volumes[idx] or 0),
+                "date": datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc).strftime("%Y-%m-%d"),
+                "open": round(float(row["o"]), 4) if row.get("o") is not None else None,
+                "high": round(float(row["h"]), 4) if row.get("h") is not None else None,
+                "low": round(float(row["l"]), 4) if row.get("l") is not None else None,
+                "close": round(float(row["c"]), 4),
+                "volume": int(row.get("v") or 0),
             }
         )
     return bars
+
+
+def get_historical_prices(ticker: str, range_str: str = "3mo", interval: str = "1d") -> List[Dict[str, Any]]:
+    """Return clean OHLCV price history with Massive fallback (replaces Bloomberg GP)."""
+    ticker = ticker.upper().strip()
+    try:
+        data = fetch_json(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}",
+            params={"range": range_str, "interval": interval},
+            headers={"User-Agent": "Mozilla/5.0"},
+            ttl_seconds=1800,
+        )
+        result = ((data.get("chart") or {}).get("result") or [None])[0]
+        if result:
+            timestamps = result.get("timestamp") or []
+            quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+            opens = quote.get("open") or []
+            highs = quote.get("high") or []
+            lows = quote.get("low") or []
+            closes = quote.get("close") or []
+            volumes = quote.get("volume") or []
+
+            bars: List[Dict[str, Any]] = []
+            for idx, ts in enumerate(timestamps):
+                if closes[idx] is None:
+                    continue
+                bars.append(
+                    {
+                        "date": datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d"),
+                        "open": round(opens[idx], 4) if opens[idx] is not None else None,
+                        "high": round(highs[idx], 4) if highs[idx] is not None else None,
+                        "low": round(lows[idx], 4) if lows[idx] is not None else None,
+                        "close": round(closes[idx], 4),
+                        "volume": int(volumes[idx] or 0),
+                    }
+                )
+            if bars:
+                return bars
+    except Exception:
+        if interval != "1d":
+            raise
+
+    if interval == "1d":
+        fallback = _history_from_massive(ticker, range_str=range_str)
+        if fallback:
+            return fallback
+    raise RuntimeError(f"No historical chart data for {ticker}")
 
 
 def get_financial_statements(ticker: str, limit: int = 4) -> Dict[str, Any]:
@@ -414,3 +457,43 @@ def get_options_chain(
         )
     contracts.sort(key=lambda c: (c["expiry"], c["type"], c["strike"]))
     return {"ticker": ticker, "count": len(contracts), "contracts": contracts}
+
+
+def compare_peers(tickers: List[str]) -> Dict[str, Any]:
+    """Compare valuation multiples, growth, and market caps across peers (replaces Bloomberg RV)."""
+    clean = [t.upper().strip() for t in tickers if t.strip()][:6]
+
+    def _inspect(sym: str) -> Dict[str, Any]:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            q_f = pool.submit(get_quote_cross_verified, sym)
+            ov_f = pool.submit(get_company_overview, sym)
+            fc_f = pool.submit(get_analyst_forecasts, sym)
+            q = q_f.result()
+            ov = ov_f.result()
+            fc = fc_f.result()
+        ratios = fc.get("key_ratios") or {}
+        return {
+            "ticker": sym,
+            "name": ov.get("name"),
+            "sector": ov.get("sector"),
+            "price": q.get("price"),
+            "change_percent": q.get("change_percent"),
+            "market_cap": ov.get("market_cap"),
+            "pe_ttm": ratios.get("pe_ttm"),
+            "ps_ttm": ratios.get("ps_ttm"),
+            "pb_quarterly": ratios.get("pb_quarterly"),
+            "roe_ttm": ratios.get("roe_ttm"),
+            "beta": ratios.get("beta") or ov.get("beta"),
+            "52w_return_pct": ratios.get("52_week_return_pct"),
+            "analyst_ratings": fc.get("latest_analyst_ratings"),
+        }
+
+    with ThreadPoolExecutor(max_workers=min(len(clean), 4) or 1) as pool:
+        futs = {t: pool.submit(_inspect, t) for t in clean}
+        rows = []
+        for t, f in futs.items():
+            try:
+                rows.append(f.result())
+            except Exception as exc:
+                rows.append({"ticker": t, "error": str(exc)})
+    return {"peers": rows}

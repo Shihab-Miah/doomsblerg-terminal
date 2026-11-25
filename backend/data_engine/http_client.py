@@ -86,6 +86,17 @@ def clear_expired_cache() -> int:
             return cur.rowcount
 
 
+def _safe_url_for_error(url: str) -> str:
+    """Strip query strings and redact embedded NASA FIRMS path keys before raising errors."""
+    base = url.split("?")[0]
+    firms_prefix = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
+    if base.startswith(firms_prefix):
+        rest = base[len(firms_prefix) :].split("/", 1)
+        tail = f"/{rest[1]}" if len(rest) > 1 else ""
+        return f"{firms_prefix}***{tail}"
+    return base
+
+
 def fetch_text(
     url: str,
     params: Optional[Dict[str, Any]] = None,
@@ -119,14 +130,15 @@ def fetch_text(
         req_headers.update(headers)
 
     req = urllib.request.Request(url, data=body_bytes, headers=req_headers, method=method)
+    safe_url = _safe_url_for_error(url)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             text = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace")[:300]
-        raise RuntimeError(f"HTTP {exc.code} from {url.split('?')[0]}: {err_body}") from exc
+        raise RuntimeError(f"HTTP {exc.code} from {safe_url}: {err_body}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"Network error calling {url.split('?')[0]}: {exc.reason}") from exc
+        raise RuntimeError(f"Network error calling {safe_url}: {exc.reason}") from exc
 
     if ttl_seconds > 0 and text:
         _write_cache(cache_key, text, ttl_seconds)

@@ -81,10 +81,11 @@ doomsblerg-terminal/
 │   ├── data_engine/      # All data fetching and normalization
 │   ├── compute_engine/   # All math and quant models (no LLMs here)
 │   ├── agents/           # 8-agent council + multi-cloud failover router
-│   └── api/              # FastAPI routes and WebSocket handlers
+│   ├── commands/         # Plain English command parser + legacy alias mapper
+│   └── api/              # REST Web API gateway (stdlib HTTP + FastAPI adapter)
 ├── frontend/
-│   └── src/              # Next.js terminal UI
-├── geospatial/           # God's Eye View integration layer
+│   └── src/              # Terminal workstation UI (Next.js — upcoming)
+├── geospatial/           # God's Eye View intelligence + physical signal triggers
 └── docs/                 # Documentation & Plain English dictionary
 ```
 
@@ -121,10 +122,11 @@ Bloomberg Terminal: $2,000–$2,500/month. DoomsBlerg: **$0/month**.
 
 ## Status
 
-✅ **Phase 1 — Unified Data Engine: Complete & Live Verified (20/20 checks passing)**
-✅ **Phase 2 — Pure Compute Engine: Complete & Live Verified (Math + Live Quant Screener)**
+✅ **Phase 1 — Unified Data Engine: Complete & Live Verified (All 17 Keys + Keyless Gov Feeds)**
+✅ **Phase 2 — Pure Compute Engine: Complete & Live Verified (Math Identities + Live Quant Screener)**
 ✅ **Phase 3 — 4-Cloud AI Switcher Council: Complete & Live Verified (Failover + 8-Agent Debate)**
-🚧 **Phase 4 — Plain English Command System & Web API Gateway: Next**
+✅ **Phase 4 — Plain English Command System, God's Eye Triggers & Web API Gateway: Complete & Live Verified**
+🚧 **Next — Lightweight Workstation UI (`frontend/`) & Alpaca Paper Backtesting/Execution**
 
 ---
 

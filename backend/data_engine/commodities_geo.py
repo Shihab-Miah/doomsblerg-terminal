@@ -16,8 +16,8 @@ from .http_client import fetch_json, fetch_text
 
 def get_energy_inventories(limit: int = 8) -> Dict[str, Any]:
     """
-    Fetch weekly US petroleum/crude inventory statistics from EIA API v2.
-    Computes latest week-over-week inventory build (+) or draw (-).
+    Fetch weekly US commercial crude oil inventories (WCESTUS1, excluding SPR)
+    from EIA API v2 and compute consecutive week-over-week change in MBBL.
     """
     eia_key = get_key("EIA_API_KEY")
     if not eia_key:
@@ -30,7 +30,8 @@ def get_energy_inventories(limit: int = 8) -> Dict[str, Any]:
             "frequency": "weekly",
             "data[0]": "value",
             "facets[duoarea][]": "NUS",
-            "facets[product][]": "EPC0",  # Crude oil
+            "facets[product][]": "EPC0",
+            "facets[series][]": "WCESTUS1",
             "sort[0][column]": "period",
             "sort[0][direction]": "desc",
             "length": limit,
@@ -41,13 +42,25 @@ def get_energy_inventories(limit: int = 8) -> Dict[str, Any]:
     cleaned = [
         {
             "period": r.get("period"),
-            "series": r.get("series-description"),
+            "series": r.get("series"),
+            "description": r.get("series-description"),
             "value": float(r["value"]) if r.get("value") is not None else None,
             "units": r.get("units"),
         }
         for r in rows
     ]
-    return {"commodity": "US Crude Oil Stocks (EIA)", "records": cleaned}
+    change_mbbl = None
+    direction = None
+    if len(cleaned) >= 2 and cleaned[0].get("value") is not None and cleaned[1].get("value") is not None:
+        change_mbbl = round(cleaned[0]["value"] - cleaned[1]["value"], 1)
+        direction = "build (supply up)" if change_mbbl > 0 else ("draw (supply tightening)" if change_mbbl < 0 else "flat")
+
+    return {
+        "commodity": "US Commercial Crude Oil Stocks excl. SPR (EIA WCESTUS1)",
+        "latest_week_change_mbbl": change_mbbl,
+        "latest_direction": direction,
+        "records": cleaned,
+    }
 
 
 def get_crop_progress(commodity: str = "CORN", year: int = 2025, state: str = "IA") -> Dict[str, Any]:
@@ -205,3 +218,106 @@ def get_crypto_perps(symbols: Optional[List[str]] = None) -> List[Dict[str, Any]
             }
         )
     return out
+
+
+def get_fx_rates(base: str = "USD", targets: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    Fetch FX currency matrix using Frankfurter ECB rates (fast batch) plus
+    real-time primary pair verification via Alpha Vantage (replaces Bloomberg FXC).
+    """
+    base = base.upper().strip()
+    syms = [s.upper().strip() for s in (targets or ["EUR", "GBP", "JPY", "CAD", "CHF", "AUD", "CNY"]) if s.upper().strip() != base]
+
+    rates: Dict[str, float] = {}
+    as_of: Optional[str] = None
+    sources: List[str] = []
+
+    try:
+        frank = fetch_json(
+            "https://api.frankfurter.dev/v1/latest",
+            params={"base": base, "symbols": ",".join(syms)},
+            ttl_seconds=600,
+        )
+        if isinstance(frank.get("rates"), dict):
+            rates.update({k: float(v) for k, v in frank["rates"].items()})
+            as_of = frank.get("date")
+            sources.append("frankfurter_ecb")
+    except Exception:
+        pass
+
+    av_key = get_key("ALPHA_VANTAGE_API_KEY")
+    if av_key and syms:
+        lead_target = syms[0]
+        try:
+            av = fetch_json(
+                "https://www.alphavantage.co/query",
+                params={
+                    "function": "CURRENCY_EXCHANGE_RATE",
+                    "from_currency": base,
+                    "to_currency": lead_target,
+                    "apikey": av_key,
+                },
+                ttl_seconds=300,
+            )
+            quote = av.get("Realtime Currency Exchange Rate") or {}
+            rate_val = quote.get("5. Exchange Rate")
+            if rate_val:
+                rates[lead_target] = round(float(rate_val), 5)
+                as_of = quote.get("6. Last Refreshed") or as_of
+                sources.append("alpha_vantage_realtime")
+        except Exception:
+            pass
+
+    if not rates:
+        raise RuntimeError(f"Failed to retrieve FX rates for base={base}")
+
+    return {"base": base, "as_of": as_of, "sources": sources, "rates": rates}
+
+
+COMMODITY_FUTURES = {
+    "Crude Oil (WTI)": ("CL=F", "USD/bbl"),
+    "Crude Oil (Brent)": ("BZ=F", "USD/bbl"),
+    "Natural Gas": ("NG=F", "USD/MMBtu"),
+    "Gold": ("GC=F", "USD/oz"),
+    "Silver": ("SI=F", "USD/oz"),
+    "Copper": ("HG=F", "USD/lb"),
+    "Corn": ("ZC=F", "USc/bu"),
+    "Wheat": ("ZW=F", "USc/bu"),
+    "Soybeans": ("ZS=F", "USc/bu"),
+}
+
+
+def get_commodities_snapshot() -> Dict[str, Any]:
+    """Fetch major global energy, metals, and agriculture benchmark prices (replaces Bloomberg COMS)."""
+    def _one(label: str, symbol: str, unit: str) -> Dict[str, Any]:
+        try:
+            data = fetch_json(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
+                params={"range": "5d", "interval": "1d"},
+                headers={"User-Agent": "Mozilla/5.0"},
+                ttl_seconds=300,
+            )
+            meta = ((data.get("chart") or {}).get("result") or [{}])[0].get("meta", {})
+            price = meta.get("regularMarketPrice")
+            prev = meta.get("chartPreviousClose")
+            chg_pct = round(((price - prev) / prev) * 100, 2) if (price and prev) else None
+            return {"name": label, "symbol": symbol, "price": price, "change_pct": chg_pct, "unit": unit}
+        except Exception as exc:
+            return {"name": label, "symbol": symbol, "error": str(exc)}
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futs = [pool.submit(_one, lbl, sym, unit) for lbl, (sym, unit) in COMMODITY_FUTURES.items()]
+        items = [f.result() for f in futs]
+
+    eia_summary: Dict[str, Any] = {}
+    try:
+        eia = get_energy_inventories(limit=2)
+        eia_summary = {
+            "latest_change_mbbl": eia.get("latest_week_change_mbbl"),
+            "direction": eia.get("latest_direction"),
+            "latest_period": (eia.get("records") or [{}])[0].get("period"),
+        }
+    except Exception:
+        pass
+
+    return {"commodities": items, "eia_us_crude_inventory": eia_summary}

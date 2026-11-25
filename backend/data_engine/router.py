@@ -100,6 +100,30 @@ class DoomsBlergRouter:
         """Return maritime chokepoint bounding boxes for God's Eye View."""
         return ship_tracker.MAJOR_CHOKEPOINTS
 
+    def ships(self, chokepoint: str = "Singapore", listen_seconds: float = 3.5) -> Dict[str, Any]:
+        """Capture a live AIS ship snapshot near a maritime chokepoint (with timeout fallback)."""
+        return ship_tracker.collect_ships_snapshot(chokepoint=chokepoint, listen_seconds=listen_seconds)
+
+    def satellites(self, category: str = "stations", limit: int = 15) -> Dict[str, Any]:
+        """Fetch live CelesTrak satellite catalog (orbital station/navigation alerts)."""
+        return earth_events.get_active_satellites(category=category, limit=limit)
+
+    def fx(self, base: str = "USD", targets: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Live FX exchange rates via Frankfurter ECB + Alpha Vantage (replaces FXC)."""
+        return commodities_geo.get_fx_rates(base=base, targets=targets)
+
+    def commodities(self) -> Dict[str, Any]:
+        """Global energy, metals & agricultural futures + EIA crude oil delta (replaces COMS)."""
+        return commodities_geo.get_commodities_snapshot()
+
+    def climate(self, limit: int = 10) -> Dict[str, Any]:
+        """Official NOAA Climate Data Online datasets (NOAA_CDO_TOKEN)."""
+        return commodities_geo.get_noaa_climate_datasets(limit=limit)
+
+    def peers(self, tickers: List[str]) -> Dict[str, Any]:
+        """Compare valuation ratios and price action across peers (replaces RV)."""
+        return equities.compare_peers(tickers)
+
     def news(self, ticker: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
         """Curated real-time financial news combining Finnhub + Google News RSS."""
         return commodities_geo.get_market_news(ticker=ticker, limit=limit)

@@ -49,7 +49,7 @@ def run_router_unit_tests() -> None:
             ("mock_backup", "model-c"),
         ]
 
-        def fake_dispatch(provider, model, sys_p, usr_p, max_tok, temp):
+        def fake_dispatch(provider, model, sys_p, usr_p, max_tok, temp, expect_json=False):
             if provider == "mock_primary":
                 raise urllib.error.HTTPError(
                     "https://example.test", 429, "Too Many Requests", {}, io.BytesIO(b"rate limit")
@@ -78,7 +78,7 @@ def run_router_unit_tests() -> None:
             # Second call should immediately skip cooled-down gateways without invoking them
             called_targets = []
 
-            def track_dispatch(provider, model, sys_p, usr_p, max_tok, temp):
+            def track_dispatch(provider, model, sys_p, usr_p, max_tok, temp, expect_json=False):
                 called_targets.append((provider, model))
                 return "ok"
 

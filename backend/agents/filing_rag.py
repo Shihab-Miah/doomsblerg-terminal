@@ -137,7 +137,7 @@ def audit_filing(ticker: str) -> Dict[str, Any]:
         role="auditor",
         system_prompt=sys_prompt,
         user_prompt=user_prompt,
-        max_tokens=550,
+        max_tokens=900,
         temperature=0.1,
         expect_json=True,
     )

@@ -156,9 +156,24 @@ def get_recent_earthquakes(min_magnitude: float = 4.5, days_back: int = 3) -> Di
     }
 
 
-def get_active_satellites(category: str = "stations") -> str:
-    """Fetch satellite TLE data from CelesTrak."""
-    return fetch_text(
-        f"https://celestrak.org/NORAD/elements/gp.php?GROUP={category}&FORMAT=tle",
+def get_active_satellites(category: str = "stations", limit: int = 20) -> Dict[str, Any]:
+    """Fetch live orbital element catalog from CelesTrak (keyless JSON feed)."""
+    data = fetch_json(
+        "https://celestrak.org/NORAD/elements/gp.php",
+        params={"GROUP": category, "FORMAT": "json"},
         ttl_seconds=21600,
     )
+    if not isinstance(data, list):
+        return {"category": category, "count": 0, "satellites": []}
+    sats = [
+        {
+            "name": s.get("OBJECT_NAME"),
+            "object_id": s.get("OBJECT_ID"),
+            "norad_cat_id": s.get("NORAD_CAT_ID"),
+            "epoch": s.get("EPOCH"),
+            "inclination_deg": s.get("INCLINATION"),
+            "mean_motion_rev_day": s.get("MEAN_MOTION"),
+        }
+        for s in data[:limit]
+    ]
+    return {"category": category, "total_tracked": len(data), "satellites": sats}

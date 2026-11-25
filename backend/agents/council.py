@@ -47,11 +47,10 @@ def _geospatial_sector_signal(sector: str) -> Dict[str, Any]:
     if fires.get("farm_fire_count", 0) > 0:
         notes.append(f"{fires['farm_fire_count']} satellite fire detections near major crop belts.")
 
-    records = oil.get("records") or []
-    if len(records) >= 2 and records[0].get("value") and records[1].get("value"):
-        delta = round(records[0]["value"] - records[1]["value"], 1)
-        direction = "build (supply up)" if delta > 0 else "draw (supply tightening)"
-        notes.append(f"US Crude Oil inventory latest weekly change: {delta:+} MBBL ({direction}).")
+    delta = oil.get("latest_week_change_mbbl")
+    if delta is not None:
+        direction = oil.get("latest_direction") or ("build" if delta > 0 else "draw")
+        notes.append(f"US Commercial Crude Oil inventory weekly change (WCESTUS1): {delta:+} MBBL ({direction}).")
 
     relevant = "high" if (
         ("tech" in sector_low and any("Taiwan" in str(q) or "Japan" in str(q) for q in hub_alerts))
@@ -253,7 +252,7 @@ def daily_pick_scan(tickers: Optional[List[str]] = None) -> Dict[str, Any]:
             }
             for r in valid
         ],
-        "top_buy_candidate": debate["verdict"],
+        "top_buy_candidate": {"ticker": top_pick["ticker"], **debate["verdict"]},
         "weakest_candidate_watch_out": {
             "ticker": weakest["ticker"],
             "quant_score_100": weakest["quant_score_100"],

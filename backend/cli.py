@@ -1,17 +1,17 @@
 """
-DoomsBlerg Terminal CLI (Phase 1 Data + Phase 2 Compute)
-========================================================
-Run plain-English market queries, valuations, technicals, and watchlists
-straight from your shell — zero cryptic Bloomberg abbreviations.
+DoomsBlerg Terminal CLI (Phases 1-4 Unified Command Center)
+===========================================================
+Run plain-English market queries, valuations, AI council debates, God's Eye
+geospatial triggers, and the Web API gateway straight from your shell.
 
 Examples:
-    python3 backend/cli.py price AAPL
-    python3 backend/cli.py valuation AAPL
-    python3 backend/cli.py technicals NVDA
-    python3 backend/cli.py risk AAPL
-    python3 backend/cli.py score AAPL
-    python3 backend/cli.py screen AAPL NVDA MSFT
-    python3 backend/cli.py yield_curve
+    python3 backend/cli.py ask "Show me Apple's financials"
+    python3 backend/cli.py "what is on fire"
+    python3 backend/cli.py debate AAPL
+    python3 backend/cli.py gods_eye
+    python3 backend/cli.py fx USD EUR
+    python3 backend/cli.py compare AAPL MSFT NVDA
+    python3 backend/cli.py serve 8000
 """
 
 import json
@@ -29,6 +29,8 @@ from backend.agents import (
     llm_router,
     morning_briefing,
 )
+from backend.api import serve_forever
+from backend.commands import list_supported_commands, run_command
 from backend.compute_engine import (
     analyze_options_chain,
     analyze_stock_risk,
@@ -40,6 +42,7 @@ from backend.compute_engine import (
     screen_watchlist,
 )
 from backend.data_engine.router import router
+from geospatial.gods_eye import scan_gods_eye_triggers
 
 
 COMMANDS = {
@@ -82,20 +85,62 @@ COMMANDS = {
     "briefing": lambda args: morning_briefing(),
     "best_picks": lambda args: daily_pick_scan(args if args else None),
     "ai_health": lambda args: llm_router.gateway_health(),
+    # Phase 4: Plain English Commands, God's Eye & Extended Market Feeds
+    "ask": lambda args: run_command(" ".join(args)),
+    "fx": lambda args: router.fx(base=args[0] if args else "USD", targets=args[1:] or None),
+    "commodities": lambda args: router.commodities(),
+    "climate": lambda args: router.climate(),
+    "satellites": lambda args: router.satellites(args[0] if args else "stations"),
+    "ships": lambda args: router.ships(args[0] if args else "Singapore"),
+    "compare": lambda args: router.peers(args if len(args) >= 2 else ["AAPL", "MSFT", "NVDA"]),
+    "gods_eye": lambda args: scan_gods_eye_triggers(
+        flight_region=args[0] if len(args) > 0 else "nyc",
+        ship_chokepoint=args[1] if len(args) > 1 else "Singapore",
+    ),
+    "commands": lambda args: list_supported_commands(),
 }
+
+
+def _interactive_loop() -> int:
+    print("DoomsBlerg Interactive Plain-English Terminal (type 'exit' to quit, 'help' for examples)")
+    while True:
+        try:
+            line = input("\nDoomsBlerg> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not line:
+            continue
+        if line.lower() in ("exit", "quit", "q"):
+            return 0
+        print(json.dumps(run_command(line), indent=2, default=str))
 
 
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
         print("DoomsBlerg CLI — Available commands:")
-        print("  " + ", ".join(sorted(COMMANDS.keys())))
+        print("  " + ", ".join(sorted([*COMMANDS.keys(), "interactive", "serve"])))
+        print("Or pass any plain-English sentence directly, e.g.:")
+        print('  python3 backend/cli.py "Show me Apple\'s financials"')
         return 0
 
     cmd = sys.argv[1].lower().strip()
     args = sys.argv[2:]
+
+    if cmd == "interactive":
+        return _interactive_loop()
+    if cmd == "serve":
+        port = int(args[0]) if args else 8000
+        host = args[1] if len(args) > 1 else "127.0.0.1"
+        serve_forever(host=host, port=port)
+        return 0
+
     if cmd not in COMMANDS:
-        print(f"Unknown command '{cmd}'. Available: {', '.join(sorted(COMMANDS.keys()))}")
-        return 1
+        # Seamless plain-English execution even without typing `ask`
+        full_query = " ".join(sys.argv[1:])
+        result = run_command(full_query)
+        print(json.dumps(result, indent=2, default=str))
+        return 0 if result.get("intent") != "unknown" else 1
 
     result = COMMANDS[cmd](args)
     print(json.dumps(result, indent=2, default=str))

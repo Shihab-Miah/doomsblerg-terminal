@@ -22,25 +22,26 @@ ROUTER_DB_PATH = PROJECT_ROOT / "data" / "llm_router.db"
 _LOCK = threading.Lock()
 
 
-# Verified working model targets by provider
+# Verified working model targets by provider (fast/reliable models lead chains)
 DEFAULT_CHAINS: Dict[str, List[Tuple[str, str]]] = {
     "auditor": [
-        ("google", "gemini-3.5-flash"),
+        ("google", "gemini-2.5-flash"),
         ("groq", "openai/gpt-oss-120b"),
         ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free"),
+        ("google", "gemini-3.5-flash"),
         ("kilo", "reflection/beam-free"),
     ],
     "bull": [
         ("groq", "openai/gpt-oss-120b"),
-        ("openrouter", "nvidia/nemotron-3.5-lightning:free"),
         ("google", "gemini-2.5-flash"),
+        ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free"),
         ("kilo", "reflection/beam-free"),
     ],
     "bear": [
-        ("google", "gemma-4-31b-it"),
         ("kilo", "reflection/beam-free"),
         ("groq", "qwen/qwen3.8-27b"),
-        ("openrouter", "nvidia/nemotron-3.5-lightning:free"),
+        ("google", "gemma-4-31b-it"),
+        ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free"),
     ],
     "sentiment": [
         ("groq", "qwen/qwen3.8-27b"),
@@ -55,9 +56,10 @@ DEFAULT_CHAINS: Dict[str, List[Tuple[str, str]]] = {
         ("google", "gemini-2.5-flash"),
     ],
     "judge": [
-        ("google", "gemini-3.5-flash"),
         ("groq", "openai/gpt-oss-120b"),
+        ("google", "gemini-2.5-flash"),
         ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free"),
+        ("google", "gemini-3.5-flash"),
         ("kilo", "reflection/beam-free"),
     ],
 }
@@ -139,18 +141,29 @@ def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeo
         return json.loads(resp.read().decode("utf-8", errors="replace"))
 
 
-def _call_google(model: str, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
+def _call_google(
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int,
+    temperature: float,
+    expect_json: bool = False,
+) -> str:
     key = get_key("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("Missing GEMINI_API_KEY")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
     combined = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
+    gen_cfg: Dict[str, Any] = {
+        "maxOutputTokens": max_tokens,
+        "temperature": temperature,
+    }
+    if expect_json and model.startswith("gemini-"):
+        gen_cfg["responseMimeType"] = "application/json"
+
     payload = {
         "contents": [{"role": "user", "parts": [{"text": combined}]}],
-        "generationConfig": {
-            "maxOutputTokens": max_tokens,
-            "temperature": temperature,
-        },
+        "generationConfig": gen_cfg,
     }
     data = _post_json(url, {"User-Agent": "DoomsBlergTerminal/1.0"}, payload)
     candidates = data.get("candidates") or []
@@ -211,9 +224,10 @@ def _dispatch_provider(
     user_prompt: str,
     max_tokens: int,
     temperature: float,
+    expect_json: bool = False,
 ) -> str:
     if provider == "google":
-        return _call_google(model, system_prompt, user_prompt, max_tokens, temperature)
+        return _call_google(model, system_prompt, user_prompt, max_tokens, temperature, expect_json=expect_json)
     if provider == "groq":
         key = get_key("GROQ_API_KEY")
         if not key:
@@ -281,7 +295,15 @@ class MultiCloudLLMRouter:
 
             t0 = time.time()
             try:
-                text = _dispatch_provider(provider, model, system_prompt, user_prompt, max_tokens, temperature)
+                text = _dispatch_provider(
+                    provider,
+                    model,
+                    system_prompt,
+                    user_prompt,
+                    max_tokens,
+                    temperature,
+                    expect_json=expect_json,
+                )
                 parsed = _extract_json_object(text) if expect_json else None
                 return {
                     "text": text,

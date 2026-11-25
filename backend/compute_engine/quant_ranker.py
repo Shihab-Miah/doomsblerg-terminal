@@ -117,9 +117,18 @@ def score_stock(ticker: str) -> Dict[str, Any]:
         fund = fund_fut.result()
         tech = tech_fut.result()
         risk = risk_fut.result()
-        insiders = ins_fut.result()
-        forecasts = fc_fut.result()
-        articles = news_fut.result()
+        try:
+            insiders = ins_fut.result()
+        except Exception as exc:
+            insiders = {"signal": "neutral", "net_insider_shares": 0, "error": str(exc)}
+        try:
+            forecasts = fc_fut.result()
+        except Exception as exc:
+            forecasts = {"latest_analyst_ratings": None, "error": str(exc)}
+        try:
+            articles = news_fut.result()
+        except Exception:
+            articles = []
 
     sent = score_headlines(articles)
 

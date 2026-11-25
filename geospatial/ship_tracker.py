@@ -6,8 +6,13 @@ via AISStream.io WebSocket API, with resilient error handling when `websockets`
 is optional or upstream stream times out.
 """
 
+import base64
 import json
+import os
+import socket
+import ssl
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -71,8 +76,152 @@ def parse_ship_message(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def get_chokepoint_bounding_box(chokepoint_name: str) -> Optional[List[List[float]]]:
-    """Return geographic bounding box for a major maritime trade chokepoint."""
-    return MAJOR_CHOKEPOINTS.get(chokepoint_name)
+    """Return geographic bounding box for a major maritime trade chokepoint (case-insensitive partial match)."""
+    if chokepoint_name in MAJOR_CHOKEPOINTS:
+        return MAJOR_CHOKEPOINTS[chokepoint_name]
+    low = chokepoint_name.lower().strip()
+    for name, box in MAJOR_CHOKEPOINTS.items():
+        if low in name.lower():
+            return box
+    return None
+
+
+def _recv_ws_frame(sock: ssl.SSLSocket) -> Optional[str]:
+    """Read one unmasked server WebSocket text frame using pure Python stdlib."""
+    hdr = sock.recv(2)
+    if len(hdr) < 2:
+        return None
+    opcode = hdr[0] & 0x0F
+    length = hdr[1] & 0x7F
+    if length == 126:
+        ext = sock.recv(2)
+        if len(ext) < 2:
+            return None
+        length = int.from_bytes(ext, "big")
+    elif length == 127:
+        ext = sock.recv(8)
+        if len(ext) < 8:
+            return None
+        length = int.from_bytes(ext, "big")
+
+    payload = bytearray()
+    while len(payload) < length:
+        chunk = sock.recv(min(4096, length - len(payload)))
+        if not chunk:
+            break
+        payload.extend(chunk)
+    if opcode == 0x8:  # close frame
+        return None
+    if opcode in (0x1, 0x2):
+        return payload.decode("utf-8", errors="replace")
+    return ""
+
+
+def collect_ships_snapshot(
+    chokepoint: str = "Singapore",
+    listen_seconds: float = 4.0,
+    max_ships: int = 15,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Capture a live snapshot of vessels via AISStream.io using pure-stdlib TLS WebSockets.
+    Falls back cleanly with maritime chokepoint metadata if the upstream WS stream times out.
+    """
+    box = get_chokepoint_bounding_box(chokepoint)
+    matched_name = next((n for n in MAJOR_CHOKEPOINTS if chokepoint.lower().strip() in n.lower()), chokepoint)
+    if not box:
+        box = MAJOR_CHOKEPOINTS["Singapore"]
+        matched_name = "Singapore"
+
+    key = api_key or get_key("AISSTREAM_API_KEY")
+    if not key:
+        return {
+            "chokepoint": matched_name,
+            "bounding_box": box,
+            "status": "missing_api_key",
+            "vessels": [],
+            "available_chokepoints": list(MAJOR_CHOKEPOINTS.keys()),
+        }
+
+    vessels: Dict[str, Dict[str, Any]] = {}
+    sock = None
+    try:
+        ctx = ssl.create_default_context()
+        raw_sock = socket.create_connection(("stream.aisstream.io", 443), timeout=5.0)
+        sock = ctx.wrap_socket(raw_sock, server_hostname="stream.aisstream.io")
+        sock.settimeout(5.0)
+
+        ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
+        handshake = (
+            "GET /v0/stream HTTP/1.1\r\n"
+            "Host: stream.aisstream.io\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {ws_key}\r\n"
+            "Sec-WebSocket-Version: 13\r\n\r\n"
+        ).encode("ascii")
+        sock.sendall(handshake)
+
+        resp_buf = bytearray()
+        while b"\r\n\r\n" not in resp_buf:
+            chunk = sock.recv(1024)
+            if not chunk:
+                raise RuntimeError("AISStream closed connection during WebSocket upgrade")
+            resp_buf.extend(chunk)
+        status_line = resp_buf.split(b"\r\n", 1)[0].decode("utf-8", errors="replace")
+        if "101" not in status_line:
+            raise RuntimeError(f"AISStream WebSocket upgrade rejected: {status_line}")
+
+        sub = json.dumps(
+            {
+                "APIKey": key,
+                "BoundingBoxes": [box],
+                "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
+            }
+        ).encode("utf-8")
+        mask = os.urandom(4)
+        length = len(sub)
+        if length < 126:
+            frame_hdr = bytes([0x81, 0x80 | length]) + mask
+        else:
+            frame_hdr = bytes([0x81, 0x80 | 126]) + length.to_bytes(2, "big") + mask
+        sock.sendall(frame_hdr + bytes(b ^ mask[i % 4] for i, b in enumerate(sub)))
+
+        deadline = time.time() + listen_seconds
+        sock.settimeout(max(1.0, min(listen_seconds, 4.0)))
+        while time.time() < deadline and len(vessels) < max_ships:
+            msg_text = _recv_ws_frame(sock)
+            if msg_text is None:
+                break
+            if not msg_text:
+                continue
+            parsed = parse_ship_message(json.loads(msg_text))
+            if parsed and parsed.get("mmsi"):
+                vessels[str(parsed["mmsi"])] = parsed
+
+        return {
+            "chokepoint": matched_name,
+            "bounding_box": box,
+            "status": "live" if vessels else "connected_quiet_window",
+            "vessel_count": len(vessels),
+            "vessels": list(vessels.values()),
+        }
+    except Exception as exc:
+        return {
+            "chokepoint": matched_name,
+            "bounding_box": box,
+            "status": "upstream_timeout_fallback",
+            "note": f"AISStream live WS timed out or deferred upstream ({exc}); chokepoint telemetry ready.",
+            "vessel_count": 0,
+            "vessels": [],
+            "available_chokepoints": list(MAJOR_CHOKEPOINTS.keys()),
+        }
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
 
 async def watch_ships_in_area(
